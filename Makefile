@@ -2,22 +2,25 @@
 MAKEFILE_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 BASE_DIR := $(realpath $(CURDIR)/$(MAKEFILE_DIR))
 
+ARDUINO_DIR = /home/ygram/opt/arduino-1.6.6
+ARDUINO_CORE_DIR = $(ARDUINO_DIR)/hardware/arduino/avr/cores/arduino
+
 PORT = /dev/ttyACM0
 BAUD_RATE = 9600
-MAIN = stepper
+MAIN = pendel
 
 CXX = avr-g++
+OBJS = $(MAIN).o $(ARDUINO_DIR)/libraries/Servo/src/avr/Servo.o
 
 OBJCOPY = avr-objcopy
 SIZE = avr-size
 
-ARDUINO_DIR = /home/ygram/opt/arduino-1.6.6
-
-ARDUINO_CORE_DIR = $(ARDUINO_DIR)/hardware/arduino/avr/cores/arduino
-
 ARDUINO_INCLUDES = \
 	-I$(ARDUINO_CORE_DIR) \
-	-I$(ARDUINO_CORE_DIR)/../../variants/standard
+	-I$(ARDUINO_CORE_DIR)/../../variants/standard \
+	-I$(ARDUINO_DIR)/libraries/Servo/src \
+	-I$(ARDUINO_DIR)/libraries/Servo/src/avr
+
 
 # To build core.a build something in the IDE with verbose compiler output (preferences) then find the .a
 # file location in tmp and copy it to lib dir (libcore.a).
@@ -44,7 +47,7 @@ UPLOADFLAGS += -P $(PORT)
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 # Link.
-%.elf: %.o
+%.elf: $(OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^ $(ARDUINO_LIBS)
 
 # Binary conversion.
