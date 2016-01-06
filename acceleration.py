@@ -14,7 +14,7 @@ import numpy as np
 #
 # d0 = constant based on a
 # dn = dn-1 * ( 1 - 2 / (4n + 1)) = dn-1 * (4n - 1) / (4n + 1)
-# inversern är:
+# inversern is:
 # dn-1 = dn * (4n + 1) / (4n - 1)
 
 
@@ -38,7 +38,7 @@ def accel_1(steps, a):
     
     t = 0.0
     d0 = d = math.sqrt(1/a)
-    
+
     df.loc[0] = [0, 0, 0, 0];
     for s in np.arange(1, steps):
         t = t + d
@@ -58,7 +58,7 @@ def accel_2(steps, a):
         t = t + d
         df.loc[s] = [1/d, s, d, t]
         if s < 500:
-            d = d * (1 - 2 / (4 * s + 1))
+            d = d * (4 * s - 1) / (4 * s + 1)
         else:
             u = 1000 - s
             d = d * (4 * u + 1) / (4 * u -1 )
@@ -67,16 +67,19 @@ def accel_2(steps, a):
 
     return df.dropna()
     
-a = 10000 # steps / s²
+a = 10000.0 # steps / s2
     
 df0 = accel(1500, a)
 df1 = accel_1(1500, a)
-df2 = accel_2(1500, a)
+df2 = accel_2(3000, a)
+
+print(df2)
 
 ax = df0[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None))
 df1[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None), ax=ax)
 df2[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None), ax=ax)
-plt.show()
+# plt.show()
+
 
 # dft = df.set_index('t')
 # dft.plot(kind='line', subplots=True, layout=(2, 3), figsize=(18, 4), ylim=(0, None))
@@ -86,10 +89,10 @@ plt.show()
 # dfs.plot(kind='line', subplots=True, layout=(2, 3), figsize=(18, 4), ylim=(0, None))
 # plt.show()
 
-# Algo måste kunna prognostisera inbromsningar (target kan ändras när
-# som helst), men jag tror man kan räkna från speed faktiskt.
-# Utföra decelaration på samma sätt som acceleration (alltid ligga på samma kurva, ingen förändring vid max).
-# Beräkning vara tillräckligt snabb.
+# Algo maste kunna prognostisera inbromsningar (target kan andras nar
+# som helst), men jag tror man kan rakna fran speed faktiskt.
+# Utfora decelaration pa samma satt som acceleration (alltid ligga pa samma kurva, ingen forandring vid max).
+# Berakning vara tillrackligt snabb.
 # Mikrostega.
 # Bra kurva i start och slut.
     
