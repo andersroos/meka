@@ -66,6 +66,27 @@ def accel_2(steps, a):
                 break
 
     return df.dropna()
+
+def accel_2_integer(target_pos, a, max_speed):
+
+    # All times are in us.
+    
+    pos = 0
+    d = int(math.sqrt(1/a) * 1e6)
+    accel_steps = 0
+    min_dealy = int(1/max_speed * 1e6)
+
+    def accelerate(d, s):
+        factor = (4 * s - 1 ) / (4 * s + 1)
+        rest_factor = -int(1e6) / (4 * s + 1)
+
+    def decelerate(d, s):
+        factor = (4 * s + 1) / (4 * s - 1)
+        rest_factor = int(1e6) / (4 * s + 1)
+    
+    def step():
+        """ Returns next delay based on speed and target pos.
+        
     
 a = 10000.0 # steps / s2
     
