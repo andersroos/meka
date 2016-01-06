@@ -3,3 +3,4 @@ Software
 *.elf
 *.hex
 *.o
+.ipynb_checkpoints/
