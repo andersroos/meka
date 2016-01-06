@@ -7,7 +7,7 @@ ARDUINO_CORE_DIR = $(ARDUINO_DIR)/hardware/arduino/avr/cores/arduino
 
 PORT = /dev/ttyACM0
 BAUD_RATE = 9600
-MAIN = pendel
+MAIN = stepper
 
 CXX = avr-g++
 OBJS = $(MAIN).o $(ARDUINO_DIR)/libraries/Servo/src/avr/Servo.o
@@ -26,7 +26,7 @@ ARDUINO_INCLUDES = \
 # file location in tmp and copy it to lib dir (libcore.a).
 ARDUINO_LIBS = -lcore -lm -lc
 
-CXXFLAGS  =  -c -g -std=gnu++11 -Wall
+CXXFLAGS  =  -c -g -std=c++11 -Wall
 CXXFLAGS += -Os # Optimize for size.
 CXXFLAGS += -fno-exceptions -ffunction-sections -fdata-sections -fno-threadsafe-statics # Skip not needed/bad stuff.
 CXXFLAGS += -mmcu=atmega328p -DF_CPU=16000000L # Set target format and cpu speed.
