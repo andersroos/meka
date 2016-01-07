@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import math
 import matplotlib.pyplot as plt
@@ -47,6 +48,7 @@ def accel_0(steps, a):
 
     
 def accel_1(steps, a):
+    # Har nån knasknäcki början
 
     df = pd.DataFrame(index=np.arange(0, steps), columns=('v', 's', 'd', 't'))
     
@@ -94,12 +96,25 @@ def accel_2_integer(steps, a):
             self.delay0 = self.delay = int(math.sqrt(1/accel) * 1e6)
             self.target_pos = 0
             self.min_delay = int(1/max_speed * 1e6)
+            self.shifted = False
 
-        @staticmethod
-        def accelerate(d, s):
-            factor = (4 * s - 1 ) / (4 * s + 1)
-            rest_factor = - int(d) // (4 * s + 2)
-            return d * factor
+        def accelerate(self, d, s):
+            if not self.shifted and d < 2**16:
+                self.shifted = True
+                d = d << 16
+                print("shifting", d, s)
+            n = d - d * 2 // (4 * s + 1)
+            return n
+            
+            # factor = (4 * s - 1 ) / (4 * s + 1)
+            # rest_factor = - int(d) // (4 * s + 2)
+            # return d * factor
+
+            # 
+            # d ( 1 + 4 * s - 2) / (4 * s + 1)
+            # d ( 1 - 2 / (4 * s + 1))
+            # d - d * 2 / (4 * s + 1))
+            # 
 
         @staticmethod
         def decelerate(d, s):
@@ -124,23 +139,31 @@ def accel_2_integer(steps, a):
     df.loc[0] = [0, 0, 0, 0];
     for s in np.arange(1, steps):
 
-        d = stepper.step() / 1e6
-        t = t + d
-        df.loc[s] = [1/d, s, d, t]
+        d = stepper.step()
+        if stepper.shifted:
+            frak = int(1e6) << 16
+        else:
+            frak = int(1e6)
+        if d < 2:
+            break
+        t = t + d/frak
+        df.loc[s] = [frak/d, s, d/frak, t]
         
     return df
     
-a = 10000.0 # steps / s2
-    
-df0 = accel_0(1500, a)
-df1 = accel_1(1500, a)
-df2 = accel_2(1500, a)
-df3 = accel_2_integer(1500, a)
+a = 20000.0 # steps / s2
+s = 1500
 
-print(df2.head())
-print(df3.head())
+df0 = accel_0(s, a)
+df1 = accel_1(s, a)
+df2 = accel_2(s, a)
+df3 = accel_2_integer(s, a)
 
-plot_common('t', 'd', df1, df2, df3)
+print("df0", df0.head())
+print("df2", df2.head())
+print("df3", df3.head())
+
+plot_common('s', 't', df3)
 
 # ax = df0[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None))
 # df1[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None), ax=ax)
