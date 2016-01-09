@@ -23,13 +23,11 @@ import numpy as np
 # dn-1 = dn * (4n + 1) / (4n - 1)
 
 
-def plot_common(x, y, *dfs):
+def plot(x, y, *dfs):
     """ Plot x and y axis of dfs in common graph. """
-
     ax = None
     for df in dfs:
-        ax = df[[x, y]].set_index(x).plot(kind='line', ylim=(0, None), ax=ax)
-    plt.show()
+        ax = df[[x, y]].set_index(x).plot(kind='line', ylim=(0, None), xlim=(0, None), ax=ax)
 
     
 def accel_0(steps, a):
@@ -84,73 +82,174 @@ def accel_2(steps, a):
 
     return df.dropna()
 
+ 
+class Stepper(object):
+    """
+    Stepper class to later convert to c++.
     
+    * Can change target_pos at any time.
+    
+    * Will micro step below certain speed.
+    
+    * Updates to acceleration/dir will be done at full steps only.
+    
+    * All times are in us.
+
+    * Target pos outisde max and min will be changed to a pos within max and min.
+
+    * Max speed can be changed at any time (but decelration will take it's time).
+
+    * Acceleration can only be changed when speed is 0.
+    
+    """
+
+    def __init__(self, accel, max_speed, micro_speed):
+        """
+        All parameters are dependent on the motor, system etc.
+        
+        :param accel: acceleration in steps/s²
+        :param max_speed: max speed in steps/s
+        :param micro_speed: when going below this we will start micro stepping
+        """
+        
+        # Absolute position (full steps)
+        self.pos = 0
+
+        # The position we want to move to.
+        self.target_pos = 0
+        
+        # Steps used for acceleration, to know when we need to decelerate.
+        self.accel_steps = 0
+
+        # 1 or -1
+        self.dir = 1
+
+        # Delay 0 will only be used at 0 speed when changing
+        # direction. Delay is calculated before actual delay.
+        self.delay0 = self.delay = int(math.sqrt(1/accel) * 1e6)
+
+        # This is essentialy max speed. Delay will be moved to nearest
+        # point above this. We want delay to be predictable when decelerating.
+        self.min_delay = int(1/max_speed * 1e6)
+
+        # Delay can be shifted 16 bits for increased precision when top 16 bits no longer are needed. The number of
+        # shifted bits will be stored here.
+        self.shift = 0
+
+        # Micro step count.
+        self.micro_step = -1
+
+        # Levlel of micro stepping right now.
+        self.micro = 1
+
+        # Above this delay, we will 2 micro step (above twice it we will 4 micro step etc.)
+        self.micro_threshold = int(1/micro_speed * 1e6)
+
+    def step(self):
+        """ Returns next delay based on speed and target pos. Algorithm now, delays later. """
+
+        # Shift/unshift delay for precision? Biggest delay change factor up is 1-2/(4+1) = 0.6 or down is 1+2/(4-1) =
+        # 1.7 so a 1 bit margin on 16 bit shift should be safe. Shift when delay < 2¹15 (because it is possible),
+        # unshift when delay > 2^31.
+        if self.shift == 16 and (self.delay > 2>>31 or self.min_delay > 2>>31):
+            self.shift = 0
+            self.delay <<= 16
+            self.min_delay <<= 16
+        if self.shift == 0 and (self.delay < 2>>15 and self.min_delay < 2>>15):
+            self.shift = 16
+            self.delay >>= 16
+            self.min_delay >>= 16
+
+        distance = self.target_pos - self.pos
+        
+        # Handle stopped state.
+
+        if self.delay0 == self.delay >> self.shift:  # This is just bad, use other method.
+            if self.pos == self.target_pos:
+                # We have arrived and we are standing still.
+                return 0
+
+            if (self.dir > 0) == (distance < 0):
+                # Change dir, allow some time for it.
+                self.dir = -self.dir
+                return self.delay >> self.shift
+
+        # Handle ongoing micro stepping (implement later).
+        self.pos += self.dir
+
+        # Should we accelerate?
+
+        # What if distance = 2 and we accel to a place where decel is
+        # impossible? But we also need to be able move 1 step.
+        if distance > 0 and distance > self.accel_steps and self.delay >= self.min_delay:
+            if self.accel_steps == 0:
+                delta = 0
+            else:
+                delta = self.delay * 2 // (4 * self.accel_steps + 1)
+            self.accel_steps += 1
+            self.delay -= delta
+            return max(self.delay, self.min_delay) << self.shift
+
+        # Should we decelerate?
+
+        # What if min_delay changed? How do we know that we need to
+        # delerate no new max speed? last delay would do it.
+        if distance <= self.accel_steps:
+            if self.accel_steps == 0:
+                raise Exception("bug")
+            self.accel_steps -= 1
+
+            self.delay += self.delay * 2 // (4 * self.accel_steps - 1)
+            if self.accel_steps == 1:
+                print("delay diff at end: ", self.delay0 - self.delay)
+
+                # Last deceleration step is not needed since it is just a step not done (move this to top since this
+                # fact makes it possible to accelerate faster as well).
+                self.accel_steps = 0
+
+                self.delay = self.delay0 << self.shift  # This is a problem TODO!!! May overflow.
+            return max(self.delay, self.min_delay) >> self.shift
+
+        # Keep speed.
+        return self.delay >> (1 if self.shift == -1 else 16)
+        
+    # Accelerate
+    #
+    # dn+1 = dn ( 1 + 4 * s - 2) / (4 * s + 1)
+    # dn+1 = dn ( 1 - 2 / (4 * s + 1))
+    # dn+1 = dn - dn * 2 / (4 * s + 1))
+
+    # Decelerate
+    #
+    # dn-1 = dn * (4n + 1) / (4n - 1)
+    # dn-1 = dn * (4n - 1 + 2) / (4n - 1)
+    # dn-1 = dn * 2 // (4n - 1)
+
 def accel_2_integer(steps, a):
 
-    class Stepper(object):
-        """ All times are in us. """
-
-        def __init__(self, accel, max_speed):
-            self.pos = 0
-            self.accel_steps = 0
-            self.delay0 = self.delay = int(math.sqrt(1/accel) * 1e6)
-            self.target_pos = 0
-            self.min_delay = int(1/max_speed * 1e6)
-            self.shifted = False
-
-        def accelerate(self, d, s):
-            if not self.shifted and d < 2**16:
-                self.shifted = True
-                d = d << 16
-                print("shifting", d, s)
-            n = d - d * 2 // (4 * s + 1)
-            return n
+    stepper = Stepper(a, 1e4, 1000)
+    stepper.target_pos = steps - 1
             
-            # factor = (4 * s - 1 ) / (4 * s + 1)
-            # rest_factor = - int(d) // (4 * s + 2)
-            # return d * factor
+    df = pd.DataFrame(index=np.arange(0, steps + 1), columns=('v', 's', 'd', 't'))
 
-            # 
-            # d ( 1 + 4 * s - 2) / (4 * s + 1)
-            # d ( 1 - 2 / (4 * s + 1))
-            # d - d * 2 / (4 * s + 1))
-            # 
-
-        @staticmethod
-        def decelerate(d, s):
-            factor = (4 * s + 1) / (4 * s - 1)
-            rest_factor = int(delay0) // (4 * (s - 1) + 1)
-            return rest_factor
-            
-        def step(self):
-            """ Returns next delay based on speed and target pos. """
-            if self.accel_steps > 0:
-                self.delay = self.accelerate(self.delay, self.accel_steps)
-            self.pos += 1
-            self.accel_steps += 1
-            return self.delay
-
-    stepper = Stepper(a, 1e4)
-    stepper.target_pos = steps
-            
-    df = pd.DataFrame(index=np.arange(0, steps), columns=('v', 's', 'd', 't'))
-
-    t = 0.0
-    df.loc[0] = [0, 0, 0, 0];
-    for s in np.arange(1, steps):
-
+    t = 0
+    for s in np.arange(0, steps + 1):
         d = stepper.step()
-        if stepper.shifted:
-            frak = int(1e6) << 16
-        else:
-            frak = int(1e6)
-        if d < 2:
-            break
-        t = t + d/frak
-        df.loc[s] = [frak/d, s, d/frak, t]
-        
-    return df
-    
+        if d != 0:
+            df.loc[s] = [1e6/d, s, d/1e6, t/1e6]
+            t = t + d
+
+        # if stepper.shifted:
+        #     frak = int(1e6) << 16
+        # else:
+        #     frak = int(1e6)
+        # if d < 2:
+        #     break
+        # t = t + d/frak
+        # df.loc[s] = [frak/d, s, d/frak, t]
+    # df.loc[s + 1] = [0, s, 0, t/1e6]
+    return df.dropna()
+
 a = 20000.0 # steps / s2
 s = 1500
 
@@ -159,11 +258,12 @@ df1 = accel_1(s, a)
 df2 = accel_2(s, a)
 dfi = accel_2_integer(s, a)
 
-print("df0", df0.head())
-print("df2", df2.head())
-print("dfi", dfi.head())
+# print("df0\n", df0.head())
+print("dfi\n", dfi)
 
-plot_common('t', 'd', df0, dfi)
+plot('t', 'd', dfi)
+plot('t', 's', dfi)
+plt.show()
 
 # ax = df0[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None))
 # df1[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None), ax=ax)

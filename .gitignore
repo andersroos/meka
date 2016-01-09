@@ -4,3 +4,4 @@ Software
 *.hex
 *.o
 .ipynb_checkpoints/
+.idea/
