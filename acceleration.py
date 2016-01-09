@@ -161,13 +161,15 @@ class Stepper(object):
             self.min_delay <<= self.shift
 
         distance = self.target_pos - self.pos
+        print(distance, self.pos, self.delay>>self.shift)
         
         # Handle stopped state.
 
-        if self.pos == self.target_pos:
+        if self.accel_steps <= 1:
+            # It is possible to stop now if we want to, no need to decelerate.
 
-            if self.accel_steps <= 1:
-                # It is possible to stop now, or we are stopped, let's do it.
+            if self.pos == self.target_pos:
+                # We have arrived and can stop.
                 self.accel_steps = 0
                 self.delay = self.delay0 << self.shift  # This should work, it should not be possbile to get to
                                                         # accel_steps == 1 still shifted if delay0 does
@@ -176,6 +178,7 @@ class Stepper(object):
 
             if (self.dir > 0) == (distance < 0):
                 # Change dir, allow some time for it.
+                self.accel_steps = 0
                 self.dir = -self.dir
                 return self.delay >> self.shift
 
@@ -186,7 +189,7 @@ class Stepper(object):
 
         # What if distance = 2 and we accel to a place where decel is
         # impossible? But we also need to be able move 1 step.
-        if distance > 0 and distance > self.accel_steps and self.delay >= self.min_delay:
+        if self.dir * distance > 0 and self.dir * distance > self.accel_steps and self.delay >= self.min_delay:
             if self.accel_steps == 0:
                 delta = 0
             else:
@@ -199,7 +202,7 @@ class Stepper(object):
 
         # What if min_delay changed? How do we know that we need to
         # delerate no new max speed? last delay would do it.
-        if distance <= self.accel_steps:
+        if self.dir * distance <= self.accel_steps:
             if self.accel_steps == 0: raise Exception("bug")
             self.accel_steps -= 1
             self.delay += self.delay * 2 // (4 * self.accel_steps - 1)
@@ -245,19 +248,48 @@ def accel_2_integer(steps, a):
     # df.loc[s + 1] = [0, s, 0, t/1e6]
     return df.dropna()
 
+def move_a_bit(a):
+    stepper = Stepper(a, 1e4, 1000)
+
+    df = pd.DataFrame(index=np.arange(0, 1e4), columns=('v', 's', 'd', 't', 'p'))
+
+    t = 0
+    s = 0
+    try:
+        stepper.target_pos = 1500
+        for i in range(200):
+            d = stepper.step()
+            if d == 0:
+                break
+            df.loc[s] = [1e6/d, s, d/1e6, t/1e6, stepper.pos]
+            t += d
+            s += 1
+        stepper.target_pos = 150
+        for i in range(1500):
+            d = stepper.step()
+            if d == 0:
+                break
+            df.loc[s] = [1e6/d, s, d/1e6, t/1e6, stepper.pos]
+            t += d
+            s += 1
+    except:
+        print("FAIL")
+    return df.dropna()
+
 a = 20000.0 # steps / s2
 s = 1500
 
 # df0 = accel_0(s, a)
 # df1 = accel_1(s, a)
 # df2 = accel_2(s, a)
-dfi = accel_2_integer(s, a)
+# dfi = accel_2_integer(s, a)
+dfm = move_a_bit(a)
 
 # print("df0\n", df0.head())
-print("dfi\n", dfi)
+# print("dfi\n", dfi)
+print("dfm\n", dfm)
 
-plot('t', 'd', dfi)
-plot('t', 's', dfi)
+plot('t', 'p', dfm)
 plt.show()
 
 # ax = df0[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None))
