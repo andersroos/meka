@@ -151,22 +151,28 @@ class Stepper(object):
         # Shift/unshift delay for precision? Biggest delay change factor up is 1-2/(4+1) = 0.6 or down is 1+2/(4-1) =
         # 1.7 so a 1 bit margin on 16 bit shift should be safe. Shift when delay < 2¹15 (because it is possible),
         # unshift when delay > 2^31.
-        if self.shift == 16 and (self.delay > 2>>31 or self.min_delay > 2>>31):
+        if self.shift == 16 and (self.delay > 2<<31 or self.min_delay > 2<<31):
             self.shift = 0
-            self.delay <<= 16
-            self.min_delay <<= 16
-        if self.shift == 0 and (self.delay < 2>>15 and self.min_delay < 2>>15):
-            self.shift = 16
             self.delay >>= 16
             self.min_delay >>= 16
+        if self.shift == 0 and (self.delay < 2<<15 and self.min_delay < 2<<15):
+            self.shift = 16
+            self.delay <<= 16
+            self.min_delay <<= 16
 
         distance = self.target_pos - self.pos
         
         # Handle stopped state.
 
-        if self.delay0 == self.delay >> self.shift:  # This is just bad, use other method.
-            if self.pos == self.target_pos:
-                # We have arrived and we are standing still.
+        if self.pos == self.target_pos:
+
+            if self.accel_steps <= 1:
+                # It is possible to stop now, or we are stopped, let's do it.
+                self.accel_steps = 0
+                self.delay = self.delay0 << self.shift  # This should work, it should not be possbile to get to
+                                                        # accel_steps == 1 still shifted if delay0 does
+                                                        # not fit in shifted.
+
                 return 0
 
             if (self.dir > 0) == (distance < 0):
@@ -188,7 +194,7 @@ class Stepper(object):
                 delta = self.delay * 2 // (4 * self.accel_steps + 1)
             self.accel_steps += 1
             self.delay -= delta
-            return max(self.delay, self.min_delay) << self.shift
+            return max(self.delay, self.min_delay) >> self.shift
 
         # Should we decelerate?
 
@@ -200,14 +206,6 @@ class Stepper(object):
             self.accel_steps -= 1
 
             self.delay += self.delay * 2 // (4 * self.accel_steps - 1)
-            if self.accel_steps == 1:
-                print("delay diff at end: ", self.delay0 - self.delay)
-
-                # Last deceleration step is not needed since it is just a step not done (move this to top since this
-                # fact makes it possible to accelerate faster as well).
-                self.accel_steps = 0
-
-                self.delay = self.delay0 << self.shift  # This is a problem TODO!!! May overflow.
             return max(self.delay, self.min_delay) >> self.shift
 
         # Keep speed.
