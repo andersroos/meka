@@ -149,16 +149,16 @@ class Stepper(object):
         """ Returns next delay based on speed and target pos. Algorithm now, delays later. """
 
         # Shift/unshift delay for precision? Biggest delay change factor up is 1-2/(4+1) = 0.6 or down is 1+2/(4-1) =
-        # 1.7 so a 1 bit margin on 16 bit shift should be safe. Shift when delay < 2¹15 (because it is possible),
-        # unshift when delay > 2^31.
-        if self.shift == 16 and (self.delay > 2<<31 or self.min_delay > 2<<31):
+        # 1.7 so a 1 bit margin on 16 bit shift should be safe. Shift when delay < 1¹15 (because it is possible),
+        # unshift when delay > 1^31.
+        if self.shift == 16 and (self.delay > 1<<31 or self.min_delay > 1<<31):
+            self.delay >>= self.shift
+            self.min_delay >>= self.shift
             self.shift = 0
-            self.delay >>= 16
-            self.min_delay >>= 16
-        if self.shift == 0 and (self.delay < 2<<15 and self.min_delay < 2<<15):
+        if self.shift == 0 and (self.delay < 1<<15 and self.min_delay < 1<<15):
             self.shift = 16
-            self.delay <<= 16
-            self.min_delay <<= 16
+            self.delay <<= self.shift
+            self.min_delay <<= self.shift
 
         distance = self.target_pos - self.pos
         
@@ -172,7 +172,6 @@ class Stepper(object):
                 self.delay = self.delay0 << self.shift  # This should work, it should not be possbile to get to
                                                         # accel_steps == 1 still shifted if delay0 does
                                                         # not fit in shifted.
-
                 return 0
 
             if (self.dir > 0) == (distance < 0):
@@ -201,10 +200,8 @@ class Stepper(object):
         # What if min_delay changed? How do we know that we need to
         # delerate no new max speed? last delay would do it.
         if distance <= self.accel_steps:
-            if self.accel_steps == 0:
-                raise Exception("bug")
+            if self.accel_steps == 0: raise Exception("bug")
             self.accel_steps -= 1
-
             self.delay += self.delay * 2 // (4 * self.accel_steps - 1)
             return max(self.delay, self.min_delay) >> self.shift
 
@@ -251,9 +248,9 @@ def accel_2_integer(steps, a):
 a = 20000.0 # steps / s2
 s = 1500
 
-df0 = accel_0(s, a)
-df1 = accel_1(s, a)
-df2 = accel_2(s, a)
+# df0 = accel_0(s, a)
+# df1 = accel_1(s, a)
+# df2 = accel_2(s, a)
 dfi = accel_2_integer(s, a)
 
 # print("df0\n", df0.head())
