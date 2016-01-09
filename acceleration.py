@@ -62,7 +62,7 @@ def accel_1(steps, a):
         d = d0 * (math.sqrt(s + 1) - math.sqrt(s))
     return df.dropna()
 
-    
+
 def accel_2(steps, a):
 
     df = pd.DataFrame(index=np.arange(0, steps), columns=('v', 's', 'd', 't'))
@@ -157,13 +157,13 @@ s = 1500
 df0 = accel_0(s, a)
 df1 = accel_1(s, a)
 df2 = accel_2(s, a)
-df3 = accel_2_integer(s, a)
+dfi = accel_2_integer(s, a)
 
 print("df0", df0.head())
 print("df2", df2.head())
-print("df3", df3.head())
+print("dfi", dfi.head())
 
-plot_common('s', 't', df3)
+plot_common('t', 'd', df0, dfi)
 
 # ax = df0[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None))
 # df1[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None), ax=ax)
