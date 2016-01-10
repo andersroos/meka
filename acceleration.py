@@ -161,8 +161,7 @@ class Stepper(object):
             self.min_delay <<= self.shift
 
         distance = self.target_pos - self.pos
-        print(distance, self.pos, self.delay>>self.shift)
-        
+
         # Handle stopped state.
 
         if self.accel_steps <= 1:
@@ -180,7 +179,7 @@ class Stepper(object):
                 # Change dir, allow some time for it.
                 self.accel_steps = 0
                 self.dir = -self.dir
-                return self.delay >> self.shift
+                return self.min_delay >> self.shift
 
         # Handle ongoing micro stepping (implement later).
         self.pos += self.dir
@@ -259,6 +258,7 @@ def move_a_bit(a):
         stepper.target_pos = 1500
         for i in range(200):
             d = stepper.step()
+            # print(stepper.pos, stepper.target_pos, d)
             if d == 0:
                 break
             df.loc[s] = [1e6/d, s, d/1e6, t/1e6, stepper.pos]
@@ -267,6 +267,7 @@ def move_a_bit(a):
         stepper.target_pos = 150
         for i in range(1500):
             d = stepper.step()
+            # print(stepper.pos, stepper.target_pos, d)
             if d == 0:
                 break
             df.loc[s] = [1e6/d, s, d/1e6, t/1e6, stepper.pos]
