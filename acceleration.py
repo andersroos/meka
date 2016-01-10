@@ -82,7 +82,30 @@ def accel_2(steps, a):
 
     return df.dropna()
 
- 
+
+def accel_2_micro(steps, a):
+    df = pd.DataFrame(index=np.arange(0, steps * 16), columns=('v', 's', 'd', 't'))
+
+    t = 0.0
+    d0 = d = math.sqrt(1/a)
+
+    p = 0.0
+    delta = 1.0
+    s = 1
+    for i in range(steps * 8):
+        s += 1
+        p += delta
+        d -= d * 2 / (4 * s + 1)
+        t += d
+        df.loc[s] = [delta/d, p, d, t]
+        if s == 10:
+            delta /= 16
+            s *= 16
+            d /= 16
+
+    return df.dropna()
+
+
 class Stepper(object):
     """
     Stepper class to later convert to c++.
@@ -103,13 +126,13 @@ class Stepper(object):
     
     """
 
-    def __init__(self, accel, max_speed, micro_speed):
+    def __init__(self, accel, max_speed, micro_delay):
         """
         All parameters are dependent on the motor, system etc.
         
         :param accel: acceleration in steps/s²
         :param max_speed: max speed in steps/s
-        :param micro_speed: when going below this we will start micro stepping
+        :param micro_delay: when going above this delay we will start micro stepping
         """
         
         # Absolute position (full steps)
@@ -137,34 +160,62 @@ class Stepper(object):
         self.shift = 0
 
         # Micro step count.
-        self.micro_step = -1
+        self.micro_step = 0
 
-        # Levlel of micro stepping right now.
-        self.micro = 1
+        # Level of micro stepping right now.
+        self.micro_level = 0
 
-        # Above this delay, we will 2 micro step (above twice it we will 4 micro step etc.)
-        self.micro_threshold = int(1/micro_speed * 1e6)
+        # Above this delay, we will 2 micro step (if we reach it again we will 4 micro step etc..)
+        self.micro_delay = micro_delay
 
     def step(self):
         """ Returns next delay based on speed and target pos. Algorithm now, delays later. """
 
+        aligned = self.pos & (-1 << self.micro_level) == self.pos
+
+        # Change micro stepping level, only changed micro step mode when aligned. TODO Verify that this does not
+        # destroy precision shifted delay. But do that when algorithm is done.
+        if aligned:
+            while self.delay > self.micro_delay and self.micro_level < 5:
+                self.micro_level += 1
+                self.delay >>= 1
+                self.min_delay >>= 1
+                self.accel_steps <<=1
+                self.pos <<= 1
+                self.target_pos <<=1
+
+            while self.delay < self.micro_delay >> 1 and  self.micro_level > 0:
+                self.micro_level -= 1
+                self.delay <<= 1
+                self.min_delay <<= 1
+                self.accel_steps >>= 1
+                self.pos >>= 1
+                self.target_pos >>= 1
+
+            # Set mode here.
+
         # Shift/unshift delay for precision? Biggest delay change factor up is 1-2/(4+1) = 0.6 or down is 1+2/(4-1) =
-        # 1.7 so a 1 bit margin on 16 bit shift should be safe. Shift when delay < 1¹15 (because it is possible),
-        # unshift when delay > 1^31.
-        if self.shift == 16 and (self.delay > 1<<31 or self.min_delay > 1<<31):
-            self.delay >>= self.shift
-            self.min_delay >>= self.shift
-            self.shift = 0
-        if self.shift == 0 and (self.delay < 1<<15 and self.min_delay < 1<<15):
-            self.shift = 16
-            self.delay <<= self.shift
-            self.min_delay <<= self.shift
+        #  1.7 so a 1 bit margin on 16 bit shift should be safe, but then we have micro stepping changing delay too,
+        # so we need 2 bit margin. Shift when delay < 1¹15 (because it is possible), unshift when delay > 1^31.
+
+        # Disable shift while doing micro stepping.
+        # if self.shift == 16 and (self.delay > 1<<30 or self.min_delay > 1<<30):
+        #     # Shift to less precision.
+        #     self.delay >>= self.shift
+        #     self.min_delay >>= self.shift
+        #     self.shift = 0
+        #
+        # if self.shift == 0 and (self.delay < 1<<14 and self.min_delay < 1<<14):
+        #     # Shift to more precision.
+        #     self.shift = 16
+        #     self.delay <<= self.shift
+        #     self.min_delay <<= self.shift
 
         distance = self.target_pos - self.pos
 
         # Handle stopped state.
 
-        if self.accel_steps <= 1:
+        if aligned and self.accel_steps <= 1:
             # It is possible to stop now if we want to, no need to decelerate.
 
             if self.pos == self.target_pos:
@@ -181,8 +232,7 @@ class Stepper(object):
                 self.dir = -self.dir
                 return self.min_delay >> self.shift
 
-        # Handle ongoing micro stepping (implement later).
-        self.pos += self.dir
+        # TODO Step here and calculate delay later to be able to include time consuming calculation in next delay.
 
         # Should we accelerate?
 
@@ -190,26 +240,27 @@ class Stepper(object):
         # impossible? But we also need to be able move 1 step.
         if self.dir * distance > 0 and self.dir * distance > self.accel_steps and self.delay >= self.min_delay:
             if self.accel_steps == 0:
-                delta = 0
+                delta = 0  # Set to delay0 here instead, but then we need to handle shifted state.
             else:
                 delta = self.delay * 2 // (4 * self.accel_steps + 1)
             self.accel_steps += 1
             self.delay -= delta
-            return max(self.delay, self.min_delay) >> self.shift
 
         # Should we decelerate?
 
         # What if min_delay changed? How do we know that we need to
         # delerate no new max speed? last delay would do it.
-        if self.dir * distance <= self.accel_steps:
+        elif self.dir * distance <= self.accel_steps:
             if self.accel_steps == 0: raise Exception("bug")
             self.accel_steps -= 1
             self.delay += self.delay * 2 // (4 * self.accel_steps - 1)
-            return max(self.delay, self.min_delay) >> self.shift
 
-        # Keep speed.
-        return self.delay >> (1 if self.shift == -1 else 16)
-        
+        # Handle ongoing micro stepping (implement later).
+        self.pos += self.dir
+
+        # Return delay
+        return max(self.delay, self.min_delay) >> self.shift
+
     # Accelerate
     #
     # dn+1 = dn ( 1 + 4 * s - 2) / (4 * s + 1)
@@ -222,29 +273,25 @@ class Stepper(object):
     # dn-1 = dn * (4n - 1 + 2) / (4n - 1)
     # dn-1 = dn * 2 // (4n - 1)
 
+
 def accel_2_integer(steps, a):
 
     stepper = Stepper(a, 1e4, 1000)
-    stepper.target_pos = steps - 1
-            
-    df = pd.DataFrame(index=np.arange(0, steps + 1), columns=('v', 's', 'd', 't'))
+    stepper.target_pos = steps
+
+    df = pd.DataFrame(index=np.arange(0, steps * 16), columns=('v', 's', 'd', 't', 'adj_d', 'micro'))
 
     t = 0
-    for s in np.arange(0, steps + 1):
+    s = 0
+    while True:
         d = stepper.step()
-        if d != 0:
-            df.loc[s] = [1e6/d, s, d/1e6, t/1e6]
-            t = t + d
+        if d == 0:
+            break
 
-        # if stepper.shifted:
-        #     frak = int(1e6) << 16
-        # else:
-        #     frak = int(1e6)
-        # if d < 2:
-        #     break
-        # t = t + d/frak
-        # df.loc[s] = [frak/d, s, d/frak, t]
-    # df.loc[s + 1] = [0, s, 0, t/1e6]
+        m = 1 << stepper.micro_level
+        df.loc[s] = [1e6/d/m, stepper.pos / m, d, t/1e6, d // m, m]
+        t += d
+        s += 1
     return df.dropna()
 
 def move_a_bit(a):
@@ -279,18 +326,22 @@ def move_a_bit(a):
 
 a = 20000.0 # steps / s2
 s = 1500
-
 # df0 = accel_0(s, a)
 # df1 = accel_1(s, a)
 # df2 = accel_2(s, a)
-# dfi = accel_2_integer(s, a)
-dfm = move_a_bit(a)
+dfi = accel_2_integer(s, a)
+# dfu = accel_2_micro(s, a)
+# dfm = move_a_bit(a)
 
 # print("df0\n", df0.head())
-# print("dfi\n", dfi)
-print("dfm\n", dfm)
+print("dfi\n", dfi)
+# print("dfu\n", dfu)
+# print("dfm\n", dfm)
 
-plot('t', 'p', dfm)
+plot('t', 's', dfi)
+plot('t', 'd', dfi)
+plot('t', 'v', dfi)
+plot('s', 'v', dfi)
 plt.show()
 
 # ax = df0[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None))

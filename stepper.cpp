@@ -42,8 +42,8 @@ int step = 0;
 
 void loop()
 {
-   // digitalWrite(STP, step++ & 1);
-   // delayMicroseconds(350);
+   digitalWrite(STP, step++ & 1);
+   delayMicroseconds(350);
    
    // delayMicroseconds(350); // Fastest possible for Paulu NEMA 17.
    // delayMicroseconds(800); // Fastet possible for Mercury Motor NEMA 17.
