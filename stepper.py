@@ -33,7 +33,8 @@ class Stepper(object):
 
         :param accel: acceleration in steps/s²
         :param max_speed: max speed in steps/s
-        :param micro_delay: when going above this delay we will start micro stepping
+        :param micro_delay: is used as threshold for changing to micro stepping, when above this delay we will micro
+                            step
         """
 
         # Absolute position (full steps)
@@ -48,46 +49,38 @@ class Stepper(object):
         # 1 or -1
         self.dir = 1
 
-        # Delay 0 will only be used at 0 speed when changing
-        # direction. Delay is calculated before actual delay.
-        self.delay0 = self.delay = int(math.sqrt(1/accel) * 1e6)
-
         # This is essentialy max speed. Delay will be moved to nearest
-        # point above this. We want delay to be predictable when decelerating.
+        # point above this. We want delay to be predictable when decelerating. This changes with shift and micro.
         self.min_delay = int(1/max_speed * 1e6)
 
-        # Delay can be shifted 16 bits for increased precision when top 16 bits no longer are needed. The number of
-        # shifted bits will be stored here.
-        self.shift = 0
+        # Delay 0 will only be used at start and end. Delay changes with shift and micro.
+        self.delay0 = self.delay = int(math.sqrt(1/accel) * 1e6)
 
         # Level of micro stepping right now.
+        self.micro_delay = micro_delay
+        self.micro_up_treshold = micro_delay
+        self.micro_down_treshold = micro_delay >> 1
         self.micro = 0
 
-        # Above this delay, we will 2 micro step (if we reach it again we will 4 micro step etc..)
-        self.micro_delay = micro_delay
+        # Delays will be shifted to utilize as many bits in uint32_t as possible. Shift will only be done when
+        # max_speed, acceleration/deceleration changes. The number of shifted bits will be stored here.
+        self.shift_treshold = 1 << 30
+        self.shift = min(self._possible_shift(self.min_delay), self._possible_shift(self.delay0),
+                         self._possible_shift(micro_delay))
+        self.delay0 <<= self.shift
+        self.delay <<= self.shift
+        self.min_delay <<= self.shift
+        self.micro_delay <<= self.shift
+        self.micro_up_treshold = self.micro_delay
+        self.micro_down_treshold = self.micro_delay >> 1
 
-    def _shift_unshift(self, force_unshift=False):
-        """ Shift or unshift if needed, can be done at any time. """
-
-        # Shift/unshift delay for precision? Biggest delay change factor up is 1-2/(4+1) = 0.6 or down is 1+2/(4-1) =
-        #  1.7 so a 1 bit margin on 16 bit shift should be safe, but then we have micro stepping changing delay too,
-        # so we need 2 bit margin. Shift when delay < 1¹15 (because it is possible), unshift when delay > 1^31.
-
-        if self.shift == 0 and (self.delay < 1<<14 and self.min_delay < 1<<14 and self.micro_delay < 1<<14):
-            # Shift to more precision.
-            self.shift = 16
-            self.delay <<= self.shift
-            self.min_delay <<= self.shift
-            self.micro_delay <<= self.shift
-            return
-
-        if self.shift == 16 and (force_unshift or self.delay > 1<<30 or self.min_delay > 1<<30):
-            # Shift to less precision.
-            self.delay >>= self.shift
-            self.min_delay >>= self.shift
-            self.micro_delay >>= self.shift
-            self.shift = 0
-            return
+    def _possible_shift(self, value):
+        """ Return possible shift given the current shift_threshold. """
+        shift = 0
+        while value < self.shift_treshold:
+            shift += 1
+            value <<= 1
+        return shift
 
     def step(self):
         """ Returns next delay based on speed and target pos. Algorithm now, delays later. """
@@ -97,14 +90,13 @@ class Stepper(object):
         # Change micro stepping level, only changed micro step mode when aligned. TODO Verify that this does not
         # destroy precision shifted delay. But do that when algorithm is done.
         if aligned:
-            while self.delay > self.micro_delay and self.micro < 5:
+            while self.delay > self.micro_delay and self.micro < 5 and False:
                 self.micro += 1
                 self.delay >>= 1
                 self.min_delay >>= 1
                 self.accel_steps <<=1
                 self.pos <<= 1
                 self.target_pos <<=1
-                self._shift_unshift()
 
             while self.delay < self.micro_delay >> 1 and  self.micro > 0:
                 self.micro -= 1
@@ -113,11 +105,8 @@ class Stepper(object):
                 self.accel_steps >>= 1
                 self.pos >>= 1
                 self.target_pos >>= 1
-                self._shift_unshift()
 
             # Set mode here.
-
-        self._shift_unshift()
 
         distance = self.target_pos - self.pos
 
@@ -129,7 +118,6 @@ class Stepper(object):
             if self.pos == self.target_pos:
                 # We have arrived and can stop.
                 self.accel_steps = 0
-                self._shift_unshift(force_unshift=True)
                 self.delay = self.delay0 >> self.micro
                 return 0
 
@@ -160,7 +148,6 @@ class Stepper(object):
         elif self.dir * distance <= self.accel_steps:
             if self.accel_steps <= 1:
                 self.accel_steps = 0
-                self._shift_unshift(force_unshift=True)
                 self.delay = self.delay0 >> self.micro
             else:
                 self.accel_steps -= 1

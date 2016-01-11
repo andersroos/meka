@@ -127,7 +127,10 @@ def accel_2_integer(steps, a):
             break
 
         m = 1 << stepper.micro
-        df.loc[s] = [1e6/d/m, stepper.pos / m, d, t/1e6, d // m, m, stepper.shift]
+        v = 1e6 / d / m
+        p = stepper.pos / m
+        ad = d // m
+        df.loc[s] = [v, p, d, t / 1e6, ad, m, stepper.shift]
         t += d
         s += 1
     return df.dropna()
