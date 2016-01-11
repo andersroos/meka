@@ -1,3 +1,7 @@
+//
+// The Arduino Uno blink program, or just some other short test.
+//
+
 #include "Arduino.h"
 
 int charge_pin = 4;

@@ -1,3 +1,7 @@
+//
+// Basic testing of controlling a stepper motor with Arduino Uno.
+//
+
 #include "Arduino.h"
 
 #define STP 3

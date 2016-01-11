@@ -1,3 +1,7 @@
+//
+// Controlling an ESC using servo controller code on an Arduino Uno.
+//
+
 #include "Arduino.h"
 #include "Servo.h"
 

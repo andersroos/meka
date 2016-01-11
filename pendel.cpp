@@ -1,3 +1,15 @@
+//
+// Inverted pendulum using the following major components:
+//
+// * Arduino Uno.
+//
+// * Pololu DRV8825 stepper motor driver.
+//
+// * NEMA17 bipolar stepper motor from Polou (no 2267, SOYO part no SY42STH38-1684A), 1.7 A,  2.8 V, 1.8 deg steps.
+//
+// * Continously rotating pot as a rotary encoder.
+//
+
 #include "Arduino.h"
 
 #define M_POT A0

@@ -1,3 +1,7 @@
+//
+// Timing of calculations on a Arduino Uno, division is pretty slow, which is no surpise.
+//
+
 #include "Arduino.h"
 
 uint32_t n = 123489853;

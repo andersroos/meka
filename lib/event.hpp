@@ -1,6 +1,5 @@
 //
 // Lib for cpp micro controller event loop and callbacks.
-// 
 //
 
 #ifndef MECHATRONICS_EVENT_HPP

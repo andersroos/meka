@@ -1,3 +1,7 @@
+//
+// Buggy stepper motor speed test, this will fry your driver or motor.
+//
+
 #include "Arduino.h"
 
 #define M_POT A0

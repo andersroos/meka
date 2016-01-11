@@ -1,6 +1,5 @@
 //
 // Lib for cpp micro controller base stuff.
-// 
 //
 
 #ifndef MECHATRONICS_EVENT_HPP
