@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+#
+# Testing acceleration profiles for stepper.
+#
+
 import math
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -113,17 +117,17 @@ def accel_2_integer(steps, a):
     stepper = Stepper(a, 1e4, 1000)
     stepper.target_pos = steps
 
-    df = pd.DataFrame(index=np.arange(0, steps * 16), columns=('v', 's', 'd', 't', 'adj_d', 'micro'))
+    df = pd.DataFrame(index=np.arange(0, steps * 16), columns=('v', 's', 'd', 't', 'adj_d', 'micro', 'shift'))
 
     t = 0
     s = 0
     while True:
         d = stepper.step()
-        if d == 0:
+        if d == 0 or s > steps * 16:
             break
 
-        m = 1 << stepper.micro_level
-        df.loc[s] = [1e6/d/m, stepper.pos / m, d, t/1e6, d // m, m]
+        m = 1 << stepper.micro
+        df.loc[s] = [1e6/d/m, stepper.pos / m, d, t/1e6, d // m, m, stepper.shift]
         t += d
         s += 1
     return df.dropna()
@@ -131,27 +135,29 @@ def accel_2_integer(steps, a):
 def move_a_bit(a):
     stepper = Stepper(a, 1e4, 1000)
 
-    df = pd.DataFrame(index=np.arange(0, 1e4), columns=('v', 's', 'd', 't', 'p'))
+    df = pd.DataFrame(index=np.arange(0, 1500 * 2), columns=('v', 's', 'd', 't'))
 
-    t = 0
+    t = 0.0
     s = 0
     try:
-        stepper.target_pos = 1500
-        for i in range(200):
+        stepper.target_pos = 1500 << stepper.micro
+        while True:
             d = stepper.step()
-            # print(stepper.pos, stepper.target_pos, d)
-            if d == 0:
+            m = 1 << stepper.micro
+            if d == 0 or stepper.pos / m >= 800:
+                stepper.target_pos = 600 << stepper.micro
                 break
-            df.loc[s] = [1e6/d, s, d/1e6, t/1e6, stepper.pos]
+            df.loc[s] = [1e6/d/m, stepper.pos/m, d/1e6, t/1e6]
             t += d
             s += 1
-        stepper.target_pos = 150
-        for i in range(1500):
+        while True:
             d = stepper.step()
-            # print(stepper.pos, stepper.target_pos, d)
+            m = 1 << stepper.micro
             if d == 0:
                 break
-            df.loc[s] = [1e6/d, s, d/1e6, t/1e6, stepper.pos]
+            if 1e6/d/m < 200:
+                i = 1
+            df.loc[s] = [1e6/d/m, stepper.pos/m, d/1e6, t/1e6]
             t += d
             s += 1
     except:
@@ -163,19 +169,19 @@ s = 1500
 # df0 = accel_0(s, a)
 # df1 = accel_1(s, a)
 # df2 = accel_2(s, a)
-dfi = accel_2_integer(s, a)
+# dfi = accel_2_integer(s, a)
 # dfu = accel_2_micro(s, a)
-# dfm = move_a_bit(a)
+dfm = move_a_bit(a)
 
 # print("df0\n", df0.head())
-print("dfi\n", dfi)
+# print("dfi\n", dfi)
 # print("dfu\n", dfu)
-# print("dfm\n", dfm)
+print("dfm\n", dfm)
 
-plot('t', 's', dfi)
-plot('t', 'd', dfi)
-plot('t', 'v', dfi)
-plot('s', 'v', dfi)
+plot('t', 's', dfm)
+plot('t', 'd', dfm)
+plot('t', 'v', dfm)
+plot('s', 'v', dfm)
 plt.show()
 
 # ax = df0[['t', 'd']].set_index('t').plot(kind='line', ylim=(0, None))
