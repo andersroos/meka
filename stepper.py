@@ -98,14 +98,12 @@ class Stepper(object):
                 self.accel_steps <<= 1
                 self.pos <<= 1
                 self.target_pos <<= 1
-                print("up", self.micro, self.delay0[self.micro], self.delay0[self.micro] >> self.micro)
 
             while self.micro > 0 and self.delay < self.micro_delay << self.micro >> 1:
                 self.micro -= 1
                 self.accel_steps >>= 1
                 self.pos >>= 1
                 self.target_pos >>= 1
-                print("down", self.micro, self.delay0[self.micro])
 
             # Set mode here.
 
