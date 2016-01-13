@@ -144,7 +144,7 @@ def micro_8(steps, a):
 
 def accel_2_integer(steps, a):
 
-    stepper = Stepper(a, 1e4, 1000)
+    stepper = Stepper(a, 1e4, 700)
     stepper.target_pos = steps
 
     df = pd.DataFrame(index=np.arange(0, steps * 16), columns=('v', 's', 'd', 't', 'adj_d', 'micro', 'shift'))
@@ -160,8 +160,8 @@ def accel_2_integer(steps, a):
         v = 1e6 / d / m
         p = stepper.pos / m
         ad = d * m
-        df.loc[s] = [v, p, d, t / 1e6, ad, m, stepper.shift]
         t += d
+        df.loc[s] = [v, p, d, t / 1e6, ad, m, stepper.shift]
         s += 1
     return df.dropna()
 
@@ -211,7 +211,7 @@ s = 1500
 # i
 
 dfi = accel_2_integer(s, a)
-
+pd.set_option('display.max_rows', len(dfi))
 print("dfi\n", dfi)
 
 plot('t', 's', dfi)

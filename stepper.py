@@ -93,17 +93,17 @@ class Stepper(object):
         # Change micro stepping level, only changed micro step mode when aligned. Delays will not be shifted since
         # it is better to pretend that they are shifted to keep precision.
         if aligned:
+            while self.micro > 0 and self.delay < self.micro_delay << self.micro:
+                self.micro -= 1
+                self.accel_steps >>= 1
+                self.pos >>= 1
+                self.target_pos >>= 1
+
             while self.micro < 5 and self.delay > self.micro_delay << self.micro:
                 self.micro += 1
                 self.accel_steps <<= 1
                 self.pos <<= 1
                 self.target_pos <<= 1
-
-            while self.micro > 0 and self.delay < self.micro_delay << self.micro >> 1:
-                self.micro -= 1
-                self.accel_steps >>= 1
-                self.pos >>= 1
-                self.target_pos >>= 1
 
             # Set mode here.
 
