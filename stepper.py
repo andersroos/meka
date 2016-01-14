@@ -85,7 +85,8 @@ class Stepper(object):
         self.delay0 = [int(d0 * math.sqrt(1 << m)) for m in range(self.micro_levels)]
         self.delay = self.delay0[0]
 
-        # Level of micro stepping right now.
+        # Level of micro stepping right now. Setting of start micro is flawed since delay0 is dependent on micro and
+        # micro is dependent on delay0. Setting to 0 at start since that is simplest.
         self.micro = 0
         self.smooth_delay = smooth_dealy
 
@@ -108,13 +109,15 @@ class Stepper(object):
             # microed d0 it should be d0 * sqrt(2)^micro_level. The target_delay is based on micro level 0 and since
             # delay is not micro shifted until return target_delay doesn't need to be micro shifted either.
 
-            while self.micro > 0 and self.delay < self.smooth_delay << self.micro:
+            delay = max(self.delay, self.target_delay)
+
+            while self.micro > 0 and delay < self.smooth_delay << self.micro:
                 self.micro -= 1
                 self.accel_steps >>= 1
                 self.pos >>= 1
                 self.target_pos >>= 1
 
-            while self.micro < 5 and self.delay > self.smooth_delay << self.micro:
+            while self.micro < 5 and delay > self.smooth_delay << self.micro:
                 self.micro += 1
                 self.accel_steps <<= 1
                 self.pos <<= 1
@@ -142,7 +145,8 @@ class Stepper(object):
                 return self.target_delay >> self.shift
 
         # TODO Step here and calculate delay later to be able to include time consuming calculation in next delay.
-
+        # The delay is the waiting needed for this step to mechanically reach its target, when waiting is done the
+        # step is done.
 
         # Handle ongoing micro stepping (implement later).
         self.pos += self.dir
