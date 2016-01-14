@@ -27,27 +27,28 @@ class Stepper(object):
 
     """
 
-    def do_shift(self):
+    def shift_down(self):
         """ Downshift to 0 then shift up to max depending on the values that should be shifted. """
         for i in range(len(self.delay0)):
             self.delay0[i] >>= self.shift
         self.delay >>= self.shift
         self.target_delay >>= self.shift
         self.smooth_delay >>= self.shift
+        self.shift = 0
 
-        shift = 0
-        d_max = max(self.delay0[-1], self.target_delay, self.smooth_delay)
+    def shift_up(self):
+        d_max = max(self.delay0[-1], self.target_delay, self.smooth_delay) << self.shift
         while d_max < self.shift_treshold:
-            shift += 1
+            self.shift += 1
             d_max <<= 1
-
-        self.shift = shift
 
         for i in range(len(self.delay0)):
             self.delay0[i] <<= self.shift
         self.delay <<= self.shift
         self.target_delay <<= self.shift
         self.smooth_delay <<= self.shift
+
+    ACCEL, DECEL, TARGET_SPEED = range(3)
 
     def __init__(self, accel, target_speed, smooth_dealy):
         """
@@ -58,6 +59,8 @@ class Stepper(object):
         :param smooth_dealy: is used as threshold for changing to micro stepping, when above this delay we will micro
                               step, this should be choosen as a delay when the motor runs smooth
         """
+
+        self.state = self.ACCEL
 
         # This is driver dependent.
         self.micro_levels = 6
@@ -94,7 +97,7 @@ class Stepper(object):
         # max_speed, acceleration/deceleration changes. The number of shifted bits will be stored here.
         self.shift_treshold = 1 << 30
         self.shift = 0
-        self.do_shift()
+        self.shift_up()
 
     def step(self):
         """ Returns next delay based on speed and target pos. Algorithm now, delays later. """
@@ -127,35 +130,57 @@ class Stepper(object):
 
         distance = self.target_pos - self.pos
 
-        # Handle stopped state.
+        # Handle non stepping states (stopped).
 
         if aligned and self.accel_steps <= 1:
-            # It is possible to stop now if we want to, no need to decelerate.
+            # It is possible to stop now if we want to, no need to decelerate more.
 
-            if self.pos == self.target_pos:
-                # We have arrived and can stop.
+            if distance == 0:
+                # We have arrived, so stop.
                 self.accel_steps = 0
                 self.delay = self.delay0[self.micro]
+                self.state = self.ACCEL
                 return 0
 
             if (self.dir > 0) == (distance < 0):
                 # Change dir, allow some time for it.
                 self.accel_steps = 0
                 self.dir = -self.dir
+                self.state = self.ACCEL
                 return self.target_delay >> self.shift
 
         # TODO Step here and calculate delay later to be able to include time consuming calculation in next delay.
         # The delay is the waiting needed for this step to mechanically reach its target, when waiting is done the
         # step is done.
 
-        # Handle ongoing micro stepping (implement later).
         self.pos += self.dir
 
-        # Should we accelerate?
+        # Stepping state changes, most important rule first.
 
-        # What if distance = 2 and we accel to a place where decel is
-        # impossible? But we also need to be able move 1 step.
-        if self.dir * distance > 0 and self.dir * distance > self.accel_steps and self.delay >= self.target_delay:
+        if self.dir * distance <= self.accel_steps:
+            # We are going in the wrong direction or need to break now or we will overshoot.
+            self.state = self.DECEL
+
+        elif self.state == self.ACCEL and self.delay < self.target_delay:
+            # We have reached a good speed
+            self.state = self.TARGET_SPEED
+
+        elif self.state == self.DECEL and self.delay >= self.target_delay:
+            # Speed changed before but speed is good now.
+            self.state = self.TARGET_SPEED
+
+        # Do it
+
+        if self.state == self.DECEL:
+            if self.accel_steps <= 1:
+                self.accel_steps = 0
+                self.delay = self.delay0[self.micro]
+            else:
+                self.accel_steps -= 1
+                self.delay += self.delay * 2 // (4 * self.accel_steps - 1)
+            return self.delay >> self.micro >> self.shift
+
+        if self.state == self.ACCEL:
             if self.accel_steps == 0:
                 delta = 0
                 self.delay = self.delay0[self.micro]
@@ -164,19 +189,6 @@ class Stepper(object):
             self.accel_steps += 1
             self.delay -= delta
 
-        # Should we decelerate?
-
-        # What if min_delay changed? How do we know that we need to
-        # decelerate no new max speed? last delay would do it.
-        elif self.dir * distance <= self.accel_steps:
-            if self.accel_steps <= 1:
-                self.accel_steps = 0
-                self.delay = self.delay0[self.micro]
-            else:
-                self.accel_steps -= 1
-                self.delay += self.delay * 2 // (4 * self.accel_steps - 1)
-
-        # Return delay
         return max(self.delay, self.target_delay) >> self.micro >> self.shift
 
     # Accelerate
