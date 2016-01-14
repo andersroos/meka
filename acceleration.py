@@ -173,15 +173,14 @@ def move_a_bit(a):
     t = 0.0
     s = 0
     try:
-        stepper.target_pos = 1500 << stepper.micro
+        stepper.target_pos = 1500
         while True:
             d = stepper.step()
             m = 1 << stepper.micro
-            if d == 0 or stepper.pos / m >= 800:
-                stepper.target_pos = 600 << stepper.micro
+            if d == 0 or stepper.pos / m >= 300:
                 break
-            df.loc[s] = [1e6/d/m, stepper.pos/m, d/1e6, t/1e6]
             t += d
+            df.loc[s] = [1e6/d/m, stepper.pos/m, d/1e6, t/1e6]
             s += 1
         while True:
             d = stepper.step()
@@ -202,30 +201,37 @@ s = 1500
 # df0 = accel_0(s, a)
 # df1 = accel_1(s, a)
 # df2 = accel_2(s, a)
-# dfm = move_a_bit(a)
-
 # print("df0\n", df0.head())
 # print("dfu\n", dfu)
-# print("dfm\n", dfm)
 
-# i
+# m
 
-dfi = accel_2_integer(s, a)
-pd.set_option('display.max_rows', len(dfi))
-print("dfi\n", dfi)
+dfm = move_a_bit(a)
 
-plot('t', 's', dfi)
-plot('t', 'd', dfi)
-plot('t', 'v', dfi)
-plot('s', 'v', dfi)
+print("dfm\n", dfm)
+plot('t', 's', dfm)
+plot('t', 'd', dfm)
+plot('t', 'v', dfm)
+plot('s', 'v', dfm)
 plt.show()
 
+# # i
+#
+# dfi = accel_2_integer(1500, a)
+# pd.set_option('display.max_rows', len(dfi))
+# print("dfi\n", dfi)
+#
+# plot('t', 's', dfi)
+# plot('t', 'd', dfi)
+# plot('t', 'v', dfi)
+# plot('s', 'v', dfi)
+# plt.show()
 
-# micro
-
+# # micro
+#
 # m1 = micro_1(s, a)
 # m8 = micro_8(s, a)
-
+#
 # print(m1.head(10))
 # print(m8.head(40))
 # plot('t', 'd', m1)

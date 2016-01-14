@@ -128,6 +128,10 @@ class Stepper(object):
 
         # TODO Step here and calculate delay later to be able to include time consuming calculation in next delay.
 
+
+        # Handle ongoing micro stepping (implement later).
+        self.pos += self.dir
+
         # Should we accelerate?
 
         # What if distance = 2 and we accel to a place where decel is
@@ -152,9 +156,6 @@ class Stepper(object):
             else:
                 self.accel_steps -= 1
                 self.delay += self.delay * 2 // (4 * self.accel_steps - 1)
-
-        # Handle ongoing micro stepping (implement later).
-        self.pos += self.dir
 
         # Return delay
         return max(self.delay, self.min_delay) >> self.shift >> self.micro
