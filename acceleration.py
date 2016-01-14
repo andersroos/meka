@@ -166,7 +166,7 @@ def accel_2_integer(steps, a):
     return df.dropna()
 
 def move_a_bit(a):
-    stepper = Stepper(a, 1e4, 1000)
+    stepper = Stepper(a, 2000, 1000)
 
     df = pd.DataFrame(index=np.arange(0, 1500 * 2), columns=('v', 's', 'd', 't'))
 
@@ -178,6 +178,7 @@ def move_a_bit(a):
             d = stepper.step()
             m = 1 << stepper.micro
             if d == 0 or stepper.pos / m >= 300:
+                stepper.set_target_speed(6000)
                 break
             t += d
             df.loc[s] = [1e6/d/m, stepper.pos/m, d/1e6, t/1e6]
@@ -204,27 +205,26 @@ s = 1500
 # print("df0\n", df0.head())
 # print("dfu\n", dfu)
 
-# # m
+# m
+
+dfm = move_a_bit(a)
+
+print("dfm\n", dfm)
+plot('t', 's', dfm)
+plot('t', 'd', dfm)
+plot('t', 'v', dfm)
+plot('s', 'v', dfm)
+plt.show()
+
+# # i
 #
-# dfm = move_a_bit(a)
+# dfi = accel_2_integer(1500, a)
+# print("dfi\n", dfi)
 #
-# print("dfm\n", dfm)
-# plot('t', 's', dfm)
-# plot('t', 'd', dfm)
-# plot('t', 'v', dfm)
-# plot('s', 'v', dfm)
-# plt.show()
-
-# i
-
-dfi = accel_2_integer(1500, a)
-# pd.set_option('display.max_rows', len(dfi))
-print("dfi\n", dfi)
-
-plot('t', 's', dfi)
-plot('t', 'd', dfi)
-plot('t', 'v', dfi)
-plot('s', 'v', dfi)
+# plot('t', 's', dfi)
+# plot('t', 'd', dfi)
+# plot('t', 'v', dfi)
+# plot('s', 'v', dfi)
 plt.show()
 
 # # micro

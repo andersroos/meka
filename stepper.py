@@ -48,6 +48,16 @@ class Stepper(object):
         self.target_delay <<= self.shift
         self.smooth_delay <<= self.shift
 
+    def set_target_speed(self, target_speed):
+        """ Set target speed which controls target_delay (min delay). """
+        self.shift_down()
+        self.target_delay = int(1 / target_speed * 1e6)
+        if self.target_delay > self.delay:
+            self.state = self.DECEL
+        else:
+            self.state = self.ACCEL
+        self.shift_up()
+
     ACCEL, DECEL, TARGET_SPEED = range(3)
 
     def __init__(self, accel, target_speed, smooth_dealy):
@@ -60,7 +70,12 @@ class Stepper(object):
                               step, this should be choosen as a delay when the motor runs smooth
         """
 
-        self.state = self.ACCEL
+        self.target_delay = 0
+
+        # Delays will be shifted to utilize as many bits in uint32_t as possible. Shift will only be done when
+        # max_speed, acceleration/deceleration changes. The number of shifted bits will be stored here.
+        self.shift_treshold = 1 << 30
+        self.shift = 0
 
         # This is driver dependent.
         self.micro_levels = 6
@@ -77,10 +92,6 @@ class Stepper(object):
         # The position we want to move to.
         self.target_pos = 0
 
-        # This is essentialy max speed. Delay will be moved to nearest point above this. This changes with shift and
-        # micro.
-        self.target_delay = int(1 / target_speed * 1e6)
-
         # Delay 0 will only be used at start and end. Delay changes with shift and micro. When micro shifting micro 1
         # step delay0 should be divided by sqrt(2) but then I don't shift with micro so that means it should be
         # multiplied by sqrt(2)/2 which is 1/sqrt(2), let's make an array out of that.
@@ -93,11 +104,9 @@ class Stepper(object):
         self.micro = 0
         self.smooth_delay = smooth_dealy
 
-        # Delays will be shifted to utilize as many bits in uint32_t as possible. Shift will only be done when
-        # max_speed, acceleration/deceleration changes. The number of shifted bits will be stored here.
-        self.shift_treshold = 1 << 30
-        self.shift = 0
-        self.shift_up()
+        self.set_target_speed(target_speed)
+
+        self.state = self.ACCEL
 
     def step(self):
         """ Returns next delay based on speed and target pos. Algorithm now, delays later. """
