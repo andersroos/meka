@@ -113,7 +113,7 @@ struct stepper
 
    // Get pos.
    int32_t pos() { return _pos; }
-   
+
    // Destructor.
    virtual ~stepper() {}
 

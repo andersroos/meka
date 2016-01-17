@@ -71,9 +71,12 @@ BOOST_AUTO_TEST_CASE(test_change_target_pos_mid_run)
 
    s.target_pos(0);
 
+   // Decelerate, stop, accelerate backwards, then break = 599 steps.
    for (uint32_t p = 0; p < 599; ++p) {
       BOOST_CHECK(s.step());
    }
    BOOST_CHECK_EQUAL(0, s.step());
    BOOST_CHECK_EQUAL(0, s.pos());
 }
+
+// TODO Add more test eventually.
