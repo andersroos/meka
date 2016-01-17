@@ -167,7 +167,7 @@ class Stepper(object):
         # Stepping state changes, most important rule first.
 
         if self.dir * distance <= self.accel_steps:
-            # We are going in the wrong direction or need to break now or we will overshoot.
+            # We are going in the wrong direction. Or we need to break now or we will overshoot.
             self.state = self.DECEL
 
         elif self.state == self.ACCEL and self.delay < self.target_delay:
