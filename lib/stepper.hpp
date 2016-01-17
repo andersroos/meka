@@ -6,109 +6,137 @@
 // WARNING: Timing uses uint32_t for counting us, undefined behaviour if more than 2^32 us (~71 mins) since micro
 // controller reset.
 //
-// NOTE: Does not support micro stepping, but will.
-//
+
+#pragma once
 
 #include <algorithm>
 
-#ifndef MECHATRONICS_STEPPER_MOTOR_HPP
-#define MECHATRONICS_STEPPER_MOTOR_HPP
+//
+// Driver constants.
+//
 
+// Enable value.
 #define STEPPER_ENABLE 0
 
 // Time needed for driver to change mode (direction, or microstepping mode).
-#define MODE_CHANGE_US 2
+#define MODE_CHANGE_US 1
+
+// Time needed for driver to enable.
+#define ENABLE_US 1
 
 // Minimal pulse duration for stepping.
 #define STEPPING_PULSE_US 1
 
-typedef int16_t pos_t;
-typedef int16_t speed_t;
+// Number of micro levels including level 0 (1 micro step per step). So if the driver can do 32 it should be 6.
+#define MICRO_LEVELS 6
+
+//
+// Stepping constants.
+//
+
+// This is code dependet, below this delays will be upshifted for precision.
+#define SHIFT_THRESHOLD (1 << 30)
+
+// Target speed set from start.
+#define DEFAULT_TARGET_SPEED 10.0
+
+// Target acceleration set at start.
+#define DEFAULT_TARGET_ACCEL 10.0
+
+//
+// Stepper interface.
+//
+
+typedef uint8_t  pin_t;
+typedef uint8_t  pin_value_t;
+
+typedef uint32_t delay_t;
+typedef uint32_t timestamp_t;
 
 struct stepper
 {
-   stepper(pin_t dir_pin,
-           pin_t step_pin,
-           pin_t enable_pin,
-           uint8_t enable_value,
-           uint8_t forward_value)
-      : _dir_pin(dir_pin),
-        _step_pin(step_pin),
-        _enable_pin(enable_pin),
-        _forward_value(forward_value),
-        _dir(forward_value),
-        _pos(0),
-        _speed(0)
-   {
-      pinMode(dir_pin, OUTPUT);
-      pinMode(step_pin, OUTPUT);
-      pinMode(enable_pin, OUTPUT);
-      digitalWrite(dir_pin, _forward_value);
-      digitalWrite(step_pin, 0);
-      digitalWrite(enable_pin, !STEPPER_ENABLE);
-   }
-           
-//   // Step motor one step (may do multiple fractions of steps), try to get it to target pos as fast as possible using
-//   // parameters (speed and pos are in and out parameters). Caller is responsible for max and min pos (if you want to
-//   // emergency stop, use a big accel value).
-//   void step_one(speed_t& speed, pos_t& pos, const pos_t& target_pos, const speed_t& max_speed, const speed_t& accel)
-//   {
-//      pos_t distance = target_pos - pos;
-//      if (speed == 0 and distance == 0) {
-//         // We have arrived, do nothing.
-//         return;
-//      }
-//      if ((speed > 0 and distance > 0) or (speed < 0 and distance < 0)) {
-//         // We are going in the right direction.
-//      }
-//      else if (
-//         }
+
+   enum state { ACCEL, DECEL, TARGET_SPEED };
    
-   // Step toward target pos.
+   // Create obj for motor.
+   // 
+   // forward_value: the value on the dir pin that is forward
+   stepper(pin_t       dir_pin,
+           pin_t       step_pin,
+           pin_t       enable_pin,
+           pin_t       micro0_pin,
+           pin_t       micro1_pin,
+           pin_t       micro2_pin,
+           pin_value_t forward_value,
+           delay_t     smooth_delay);
+           
+   // Reset position to 0, requires stopped state.
+   void reset();
+
+   // Turn on power to be able to move or hold.
    //
-   // returns: the microsecond since startup to wait before calling step again, this is not checked, be as accurate as
-   //          possible, returns 0 if arrived at target and speed is 0
-   uint32_t step() {
-   }
-
-   // Reset position to 0 (need to be stopped or thing will go bad).
-   void reset() {
-      _pos = 0;
-   };
-
-   // Turn on power.
-   void on() {
-      digitalWrite(enable_pin, STEPPER_ENABLE);
-   }
+   // returns: timestamp when stepper motor will be turned on
+   timestamp_t on();
 
    // Turn off power.
-   void off() {
-      digitalWrite(enable_pin, !STEPPER_ENABLE);
-   }
+   //
+   // returns: timestamp when stepper motor will be turned on
+   timestamp_t off();
 
-   // Position to go to. Can be changed at any time.
-   pos_t   target_pos;
+   // Set acceleration (and deceleration), this requires stopped state.
+   //
+   // accel: target acceleration in full steps/second^2
+   void acceleration(float accel);
 
-   // Acceleration to use, measured in steps per second. Linar acceleration will be used. Can be changed at any time.
-   speed_t accel;
+   // Set target position, can be called at any time.
+   //
+   // pos: target position in absolute steps
+   void target_pos(int32_t pos);
 
-   // Maximum speed to accelerate to. Can be changed at any time.
-   speed_t max_speed;
+   // Set target speed, can be called at any time. If changing from a higer to a lower speed the motor will decelrate to
+   // that speed.
+   //
+   // speed: the requested speed in full steps/second
+   void target_speed(float speed);
+   
+   // Step toward target position.
+   //
+   // returns: timestamp when step is finished and you should call step again to take next step, be as accurate as
+   //          possible, returns 0 if arrived at target and speed is 0
+   timestamp_t step();
 
 private:
+
+   // Pins and pin values.
    
-   pin_t    _dir_pin;
-   pin_t    _step_pin;
-   pin_t    _enable_pin;
-   uint8_t  _enable_value;
-   uint8_t  _forward_value;
+   pin_t       _dir_pin;
+   pin_t       _step_pin;
+   pin_t       _enable_pin;
+   pin_t       _micro0_pin;
+   pin_t       _micro1_pin;
+   pin_t       _micro2_pin;
    
-   uint8_t  _dir;
-   pos_t    _pos;
-   speed_t  _speed;
-   uint32_t _last_step_timestamp;
+   pin_value_t _forward_value;
+
+   // Position and stepping.
+   
+   int8_t   _dir;          // Current direction 1/-1.
+   int32_t  _pos;          // Absolute position.
+   int32_t  _target_pos;   // Direction we are moving to.
+   uint32_t _accel_steps;  // Number of steps we have accelerated.
+   
+   uint8_t  _micro;        // Micro stepping level.
+
+   // Delays.
+   
+   delay_t  _delay0[MICRO_LEVELS];  // Starting delay (this is acceleration constant), per micro level.
+   delay_t  _delay;                 // Current delay (time needed for step to move physically).
+   delay_t  _smooth_delay;          // Delay where motor runs smoothly (ideal delay), when to change micro level.
+
+   uint8_t  _shift;                 // Shift level for precision.
+
+   // Book keping.
+
+   state _state;
 
 };
-
-   
-#endif

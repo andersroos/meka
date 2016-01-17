@@ -5,3 +5,4 @@ Software
 *.o
 .ipynb_checkpoints/
 .idea/
+run-tests
