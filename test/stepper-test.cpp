@@ -9,5 +9,5 @@ using namespace std;
 
 BOOST_AUTO_TEST_CASE(a_test)
 {
-   string s(255, 'x');
+   stepper s(0, 1, 2, 3, 4, 5, 1, 900);
 }

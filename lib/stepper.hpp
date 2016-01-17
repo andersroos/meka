@@ -41,7 +41,7 @@
 #define DEFAULT_TARGET_SPEED 10.0
 
 // Target acceleration set at start.
-#define DEFAULT_TARGET_ACCEL 10.0
+#define DEFAULT_ACCEL 10.0
 
 //
 // Stepper interface.
@@ -56,7 +56,7 @@ typedef uint32_t timestamp_t;
 struct stepper
 {
 
-   enum state { ACCEL, DECEL, TARGET_SPEED };
+   enum state { OFF, ACCEL, DECEL, TARGET_SPEED };
    
    // Create obj for motor.
    // 
@@ -70,15 +70,16 @@ struct stepper
            pin_value_t forward_value,
            delay_t     smooth_delay);
            
-   // Reset position to 0, requires stopped state.
-   void reset();
+   // Set position to pos, requires stopped state.
+   void calibrate_position(int32_t pos=0);
 
-   // Turn on power to be able to move or hold.
+   // Turn on power to be able to move or hold. If you start stepping before it is turned on, it will lose track of
+   // position and speed and be unable to accelerate properly.
    //
    // returns: timestamp when stepper motor will be turned on
    timestamp_t on();
 
-   // Turn off power.
+   // Turn off power. If you do this when the motor is not stopped, it will lose track of its positon.
    //
    // returns: timestamp when stepper motor will be turned on
    timestamp_t off();
@@ -105,7 +106,16 @@ struct stepper
    //          possible, returns 0 if arrived at target and speed is 0
    timestamp_t step();
 
+   // Destructor.
+   virtual ~stepper() {}
+   
 private:
+
+   bool is_stopped();
+
+   void shift_down();
+
+   void shift_up();
 
    // Pins and pin values.
    
@@ -132,11 +142,181 @@ private:
    delay_t  _delay0[MICRO_LEVELS];  // Starting delay (this is acceleration constant), per micro level.
    delay_t  _delay;                 // Current delay (time needed for step to move physically).
    delay_t  _smooth_delay;          // Delay where motor runs smoothly (ideal delay), when to change micro level.
+   delay_t  _target_delay;          // This is our target speed.
 
    uint8_t  _shift;                 // Shift level for precision.
 
    // Book keping.
 
+   uint8_t _step;
    state _state;
-
 };
+
+
+stepper::stepper(pin_t       dir_pin,
+                 pin_t       step_pin,
+                 pin_t       enable_pin,
+                 pin_t       micro0_pin,
+                 pin_t       micro1_pin,
+                 pin_t       micro2_pin,
+                 pin_value_t forward_value,
+                 delay_t     smooth_delay)
+   : _dir_pin(dir_pin),
+     _step_pin(step_pin),
+     _enable_pin(enable_pin),
+     _micro0_pin(micro0_pin),
+     _micro1_pin(micro1_pin),
+     _micro2_pin(micro2_pin),
+     _forward_value(forward_value),
+     _dir(1),
+     _pos(0),                              
+     _target_pos(0),
+     _accel_steps(0),
+     _micro(0),
+     _delay(0),
+     _smooth_delay(smooth_delay),
+     _target_delay(1e6),
+     _shift(0),
+     _step(0),
+     _state(ACCEL)
+{
+   pinMode(dir_pin, OUTPUT);
+   pinMode(step_pin, OUTPUT);
+   pinMode(enable_pin, OUTPUT);
+   pinMode(micro0_pin, OUTPUT);
+   pinMode(micro1_pin, OUTPUT);
+   pinMode(micro2_pin, OUTPUT);
+   
+   digitalWrite(dir_pin, forward_value);
+   digitalWrite(enable_pin, !STEPPER_ENABLE);
+   digitalWrite(micro0_pin, 0);
+   digitalWrite(micro1_pin, 0);
+   digitalWrite(micro2_pin, 0);
+   
+   acceleration(DEFAULT_ACCEL);
+   target_speed(DEFAULT_TARGET_SPEED);
+}
+
+bool
+stepper::is_stopped()
+{
+   return _pos == _target_pos and _accel_steps == 0;
+}
+
+void
+stepper::shift_down()
+{
+   for (uint8_t i = 0; i < MICRO_LEVELS; ++i) {
+      _delay0[i] >>= _shift;
+   }
+   _delay >>= _shift;
+   _target_delay >>= _shift;
+   _smooth_delay >>= _shift;
+   _shift = 0;
+}
+
+void
+stepper::shift_up()
+{
+   if (_shift != 0) {
+      return;
+   }
+   
+   uint32_t max_delay = std::max(std::max(_delay0[MICRO_LEVELS - 1], _target_delay), _smooth_delay);
+   while (max_delay < SHIFT_THRESHOLD) {
+      _shift += 1;
+      max_delay <<= 1;
+   }
+
+   for (uint8_t i = 0; i < MICRO_LEVELS; ++i) {
+      _delay0[i] <<= _shift;
+   }
+   _delay <<= _shift;
+   _target_delay <<= _shift;
+   _smooth_delay <<= _shift;
+}
+
+void
+stepper::calibrate_position(int32_t pos)
+{
+   if (!is_stopped()) {
+      return;
+   }
+
+   shift_down();
+   _pos = pos;
+   shift_up();
+}
+
+timestamp_t
+stepper::on()
+{
+   uint32_t now = now_us();
+   digitalWrite(_enable_pin, STEPPER_ENABLE);
+   _state = ACCEL;
+   return now + ENABLE_US + 1;
+}
+
+timestamp_t
+stepper::off()
+{
+   uint32_t now = now_us();
+   digitalWrite(_enable_pin, !STEPPER_ENABLE);
+   _accel_steps = 0;
+   _delay = _delay0[_micro];
+   _state = OFF;
+   return now + ENABLE_US + 1;
+}
+
+void
+stepper::acceleration(float accel)
+{
+   if (!is_stopped()) {
+      return;
+   }
+
+   shift_down();
+   
+   _delay = _delay0[_micro];
+
+   float d0 = sqrt(1/accel) * 0.676 * 1e6;
+   for (uint8_t m = 0; m < MICRO_LEVELS; ++m) {
+      _delay0[m] = uint32_t(d0 * sqrt(1 << m));
+   }
+   
+   shift_up();
+}
+
+void
+stepper::target_pos(int32_t pos)
+{
+   _target_pos = pos << _micro;
+}
+
+void
+stepper::target_speed(float speed)
+{
+   shift_down();
+   
+   _target_delay = delay_t(1e6 / speed);
+
+   if (!is_stopped() and _state != OFF) {
+      // Make sure state changes based on target speed if running.
+      if (_target_delay > _delay) {
+         _state = DECEL;
+      }
+      else {
+         _state = ACCEL;
+      }
+   }
+   
+   shift_up();
+}
+
+timestamp_t
+stepper::step()
+{
+   return 0;
+}
+
+

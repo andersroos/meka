@@ -6,3 +6,4 @@ Software
 .ipynb_checkpoints/
 .idea/
 run-tests
+Makefile.bak

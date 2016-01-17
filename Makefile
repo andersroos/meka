@@ -88,4 +88,10 @@ test: $(TEST_OBJS)
 clean:
 	\rm -f *.o test/*.o *.elf *.hex *~ *.eef *.eep run-tests
 
+depend:
+	makedepend -Y test/*.cpp test/*.hpp lib/*.hpp *.cpp
+
 .PRECIOUS: %.o %.elf
+# DO NOT DELETE
+
+test/stepper-test.o: test/mock.hpp lib/stepper.hpp

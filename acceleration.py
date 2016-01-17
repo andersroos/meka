@@ -205,26 +205,26 @@ s = 1500
 # print("df0\n", df0.head())
 # print("dfu\n", dfu)
 
-# m
-
-dfm = move_a_bit(a)
-
-print("dfm\n", dfm)
-plot('t', 's', dfm)
-plot('t', 'd', dfm)
-plot('t', 'v', dfm)
-plot('s', 'v', dfm)
-plt.show()
-
-# # i
+# # m
 #
-# dfi = accel_2_integer(1500, a)
-# print("dfi\n", dfi)
+# dfm = move_a_bit(a)
 #
-# plot('t', 's', dfi)
-# plot('t', 'd', dfi)
-# plot('t', 'v', dfi)
-# plot('s', 'v', dfi)
+# print("dfm\n", dfm)
+# plot('t', 's', dfm)
+# plot('t', 'd', dfm)
+# plot('t', 'v', dfm)
+# plot('s', 'v', dfm)
+# plt.show()
+
+# i
+
+dfi = accel_2_integer(1500, a)
+print("dfi\n", dfi)
+
+plot('t', 's', dfi)
+plot('t', 'd', dfi)
+plot('t', 'v', dfi)
+plot('s', 'v', dfi)
 plt.show()
 
 # # micro

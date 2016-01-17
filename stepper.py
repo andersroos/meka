@@ -98,6 +98,7 @@ class Stepper(object):
         d0 = int(math.sqrt(1/accel) * 0.676 * 1e6)
         self.delay0 = [int(d0 * math.sqrt(1 << m)) for m in range(self.micro_levels)]
         self.delay = self.delay0[0]
+        print(self.delay0)
 
         # Level of micro stepping right now. Setting of start micro is flawed since delay0 is dependent on micro and
         # micro is dependent on delay0. Setting to 0 at start since that is simplest.
