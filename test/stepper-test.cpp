@@ -6,7 +6,7 @@
 #include "lib/stepper.hpp"
 
 
-#define S_ARGS 0, 1, 2, 3, 4, 5, 1, 700
+#define S_ARGS 0, 1, 2, 3, 4, 5, 1
 
 using namespace std;
 
@@ -14,7 +14,7 @@ BOOST_AUTO_TEST_CASE(test_simulation_scenario_move_1500)
 {
    // s = 0.5at^2 => 750 = 0.5 * 2e4 * t ^ 2 => t = 0.27 => accel + decel -> t = 0.547722
 
-   stepper s(S_ARGS);
+   stepper s(S_ARGS, 700);
    s.target_speed(1e4);
    s.acceleration(2e4);
    s.on();
@@ -32,4 +32,48 @@ BOOST_AUTO_TEST_CASE(test_simulation_scenario_move_1500)
 
    BOOST_CHECK(total_d < 5.7e5);
    BOOST_CHECK(5.4e5 < total_d);
+}
+
+BOOST_AUTO_TEST_CASE(test_simulation_scenario_move_backwards_1500)
+{
+   stepper s(S_ARGS, 700);
+   s.target_speed(1e4);
+   s.acceleration(2e4);
+   s.on();
+   s.target_pos(-1500);
+
+   uint32_t total_d = 0;
+   while (true) {
+      uint32_t start = now_us();
+      uint32_t timestamp = s.step();
+      if (!timestamp) {
+         break;
+      }
+      total_d += timestamp - start;
+   }
+
+   BOOST_CHECK(total_d < 5.7e5);
+   BOOST_CHECK(5.4e5 < total_d);
+}
+
+BOOST_AUTO_TEST_CASE(test_change_target_pos_mid_run)
+{
+   stepper s(S_ARGS, 1e6);  // High smooth delay to avoid micro stepping.
+   s.target_speed(1e5);
+   s.acceleration(2e4);
+   s.on();
+   s.target_pos(1e6);
+
+   for (uint32_t p = 0; p < 200; ++p) {
+      BOOST_CHECK(s.step());
+   }
+   BOOST_CHECK_EQUAL(200, s.pos());
+
+   s.target_pos(0);
+
+   for (uint32_t p = 0; p < 599; ++p) {
+      BOOST_CHECK(s.step());
+   }
+   BOOST_CHECK_EQUAL(0, s.step());
+   BOOST_CHECK_EQUAL(0, s.pos());
 }

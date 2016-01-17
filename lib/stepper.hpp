@@ -111,6 +111,9 @@ struct stepper
    //          possible, returns 0 if arrived at target and speed is 0
    timestamp_t step();
 
+   // Get pos.
+   int32_t pos() { return _pos; }
+   
    // Destructor.
    virtual ~stepper() {}
 
