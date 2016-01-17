@@ -5,9 +5,31 @@
 #include "mock.hpp"
 #include "lib/stepper.hpp"
 
+
+#define S_ARGS 0, 1, 2, 3, 4, 5, 1, 700
+
 using namespace std;
 
-BOOST_AUTO_TEST_CASE(a_test)
+BOOST_AUTO_TEST_CASE(test_simulation_scenario_move_1500)
 {
-   stepper s(0, 1, 2, 3, 4, 5, 1, 900);
+   // s = 0.5at^2 => 750 = 0.5 * 2e4 * t ^ 2 => t = 0.27 => accel + decel -> t = 0.547722
+
+   stepper s(S_ARGS);
+   s.target_speed(1e4);
+   s.acceleration(2e4);
+   s.on();
+   s.target_pos(1500);
+
+   uint32_t total_d = 0;
+   while (true) {
+      uint32_t start = now_us();
+      uint32_t timestamp = s.step();
+      if (!timestamp) {
+         break;
+      }
+      total_d += timestamp - start;
+   }
+
+   BOOST_CHECK(total_d < 5.7e5);
+   BOOST_CHECK(5.4e5 < total_d);
 }

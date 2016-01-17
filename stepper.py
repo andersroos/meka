@@ -95,7 +95,7 @@ class Stepper(object):
         # Delay 0 will only be used at start and end. Delay changes with shift and micro. When micro shifting micro 1
         # step delay0 should be divided by sqrt(2) but then I don't shift with micro so that means it should be
         # multiplied by sqrt(2)/2 which is 1/sqrt(2), let's make an array out of that.
-        d0 = int(math.sqrt(1/accel) * 0.676 * 1e6)
+        d0 = int(math.sqrt(1/accel) * 1e6)
         self.delay0 = [int(d0 * math.sqrt(1 << m)) for m in range(self.micro_levels)]
         self.delay = self.delay0[0]
         print(self.delay0)

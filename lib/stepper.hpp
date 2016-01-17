@@ -6,10 +6,15 @@
 // WARNING: Timing uses uint32_t for counting us, undefined behaviour if more than 2^32 us (~71 mins) since micro
 // controller reset.
 //
+// WARNING: Will do busy waits for small (~1 us) waits, this is probably a bad idea for fast CPUs (>~100 MHz). Also
+// since we don't have nano timestamp we will have to wait 1 us extra all the time (473 to 474 can be 1ns if unlucky).
+//
 
 #pragma once
 
 #include <algorithm>
+
+using namespace std;
 
 //
 // Driver constants.
@@ -108,7 +113,7 @@ struct stepper
 
    // Destructor.
    virtual ~stepper() {}
-   
+
 private:
 
    bool is_stopped();
@@ -148,7 +153,6 @@ private:
 
    // Book keping.
 
-   uint8_t _step;
    state _state;
 };
 
@@ -177,7 +181,6 @@ stepper::stepper(pin_t       dir_pin,
      _smooth_delay(smooth_delay),
      _target_delay(1e6),
      _shift(0),
-     _step(0),
      _state(ACCEL)
 {
    pinMode(dir_pin, OUTPUT);
@@ -200,7 +203,7 @@ stepper::stepper(pin_t       dir_pin,
 bool
 stepper::is_stopped()
 {
-   return _pos == _target_pos and _accel_steps == 0;
+   return _state == OFF or (_pos == _target_pos and _accel_steps == 0);
 }
 
 void
@@ -276,14 +279,14 @@ stepper::acceleration(float accel)
    }
 
    shift_down();
-   
-   _delay = _delay0[_micro];
 
-   float d0 = sqrt(1/accel) * 0.676 * 1e6;
+   float d0 = sqrt(1/accel) * 1e6;
    for (uint8_t m = 0; m < MICRO_LEVELS; ++m) {
       _delay0[m] = uint32_t(d0 * sqrt(1 << m));
    }
    
+   _delay = _delay0[_micro];
+
    shift_up();
 }
 
@@ -316,7 +319,131 @@ stepper::target_speed(float speed)
 timestamp_t
 stepper::step()
 {
-   return 0;
-}
+   bool aligned = (_pos & (int32_t(-1) << _micro)) == _pos;
 
+   if (aligned) {
+      delay_t d = std::max(_delay, _target_delay);
+      auto micro = _micro;
+
+      while (_micro > 0 and d < (_smooth_delay << _micro)) {
+         _micro -= 1;
+         _accel_steps >>= 1;
+         _pos >>= 1;
+         _target_pos >>= 1;
+      }
+      
+      while (_micro < 5 and d > (_smooth_delay << _micro)) {
+         _micro += 1;
+         _accel_steps <<= 1;
+         _pos <<= 1;
+         _target_pos <<= 1;
+      }
+
+      if (micro != _micro) {
+         uint32_t start = now_us();
+         digitalWrite(_micro0_pin, _micro >> 0 & 1);
+         digitalWrite(_micro1_pin, _micro >> 1 & 1);
+         digitalWrite(_micro1_pin, _micro >> 2 & 1);
+         // Busy wait for mode change here, not good but ok.
+         while (start + MODE_CHANGE_US + 1 < now_us());
+      }
+   }
+
+   int32_t distance = _target_pos - _pos;
+
+   // Handle non stepping states (stopped) before stepping.
+
+   if (aligned and _accel_steps <= 1) {
+      // It is possible to stop now if we want to, no need to decelerate more.
+
+      if (distance == 0) {
+         // We have arrived, so stop.
+         _accel_steps = 0;
+         _delay = _delay0[_micro];
+         _state = ACCEL;
+         return 0;
+      }
+      
+      if ((_dir > 0) == (distance < 0)) {
+         // Change dir, allow some time for it.
+         _accel_steps = 0;
+         _dir = -_dir;
+         _state = ACCEL;
+         if (_dir < 0) {
+            digitalWrite(_dir_pin, !_forward_value);
+         }
+         else {
+            digitalWrite(_dir_pin, _forward_value);
+         }
+         return now_us() + (_target_delay >> _shift);
+      }
+   }
+
+   // Step here and calculate delay later since the calculaion is so slow and we want to include that in the step
+   // waiting. The stepping wait is the time for the motor/system to make the step mechanically, when the wait is
+   // done the step is done. Step down will be done after calculation.
+
+   timestamp_t step_timestamp = now_us();
+
+   digitalWrite(_step_pin, 1);
+   _pos += _dir;
+   
+   // Stepping state changes, most important rule first.
+
+   if (_dir * distance <= int32_t(_accel_steps)) { // TODO Better way than multiplication?
+      // We are going in the wrong direction. Or we need to break now or we will overshoot.
+      _state = DECEL;
+   }
+   else if (_state == ACCEL and _delay < _target_delay) {
+      // We have reached a good speed
+      _state = TARGET_SPEED;
+   }
+   else if (_state == DECEL and _delay >= _target_delay) {
+      // Speed changed before but speed is good now.
+      _state = TARGET_SPEED;
+   }
+
+   // Do it
+
+   uint32_t return_delay = 0;
+   if (_state == DECEL) {
+      if (_accel_steps <= 1) {
+         _accel_steps = 0;
+         _delay = _delay0[_micro];
+      }
+      else {
+         _accel_steps -= 1;
+         _delay += _delay * 2 / (4 * _accel_steps - 1);
+      }
+      return_delay = _delay >> _micro >> _shift;
+   }
+   else {
+      if (_state == ACCEL) {
+         uint32_t delta;
+         if (_accel_steps == 0) {
+            delta = 0;
+            _delay = _delay0[_micro];
+         }
+         else {
+            delta = _delay * 2 / (4 * _accel_steps + 1);
+         }
+         _accel_steps += 1;
+         _delay -= delta;
+      }
+      return_delay = std::max(_delay, _target_delay) >> _micro >> _shift;
+   }
+
+   // Make sure time have passed, then downstep.
+
+   uint32_t now;   
+   while (true) {
+      now = now_us();
+      if (step_timestamp + STEPPING_PULSE_US + 1 < now) {
+         break;
+      }
+   }
+   digitalWrite(_step_pin, 0);
+
+   return std::max(step_timestamp + return_delay, now + STEPPING_PULSE_US + 1); // Downstep needs time too.
+}
 
