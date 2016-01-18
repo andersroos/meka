@@ -7,7 +7,7 @@ ARDUINO_CORE_DIR = $(ARDUINO_DIR)/hardware/arduino/avr/cores/arduino
 
 PORT = /dev/ttyACM0
 BAUD_RATE = 9600
-MAIN = stepper
+MAIN = stepper-speed-test
 
 AVR_CXX = avr-g++
 
@@ -85,8 +85,11 @@ test: $(TEST_OBJS)
 	$(CXX) -std=c++11 -o ./run-tests $(TEST_OBJS) $(TEST_LIBS)
 	./run-tests
 
+simulate: test/simulate.o
+	$(CXX) -std=c++11 -o $@ $<
+
 clean:
-	\rm -f *.o test/*.o *.elf *.hex *~ *.eef *.eep run-tests
+	\rm -f *.o test/*.o *.elf *.hex *~ *.eef *.eep run-tests simulate
 
 depend:
 	makedepend -Y test/*.cpp test/*.hpp lib/*.hpp *.cpp

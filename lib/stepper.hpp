@@ -111,8 +111,15 @@ struct stepper
    //          possible, returns 0 if arrived at target and speed is 0
    timestamp_t step();
 
-   // Get pos.
+   // Get raw position, note that this is shifted when micro stepping.
+   //
+   // returns: position
    int32_t pos() { return _pos; }
+
+   // Get current micro stepping level.
+   //
+   // returns: position
+   uint8_t micro() { return _micro; }
 
    // Destructor.
    virtual ~stepper() {}
@@ -393,7 +400,7 @@ stepper::step()
    
    // Stepping state changes, most important rule first.
 
-   if (_dir * distance <= int32_t(_accel_steps)) { // TODO Better way than multiplication?
+   if (_dir * distance <= int32_t(_accel_steps)) {
       // We are going in the wrong direction. Or we need to break now or we will overshoot.
       _state = DECEL;
    }

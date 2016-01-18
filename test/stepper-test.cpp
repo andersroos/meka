@@ -79,4 +79,19 @@ BOOST_AUTO_TEST_CASE(test_change_target_pos_mid_run)
    BOOST_CHECK_EQUAL(0, s.pos());
 }
 
+BOOST_AUTO_TEST_CASE(test_expected_micro_stepping_level_is_used)
+{
+   stepper s(S_ARGS, 1);  // Low smooth delay to do max micro stepping.
+   s.target_speed(1e5);
+   s.acceleration(2e4);
+   s.on();
+   s.target_pos(1);
+
+   uint32_t steps = 0;
+   while (s.step()) steps++;
+   BOOST_CHECK_EQUAL(32, steps);
+   BOOST_CHECK_EQUAL(1, s.pos());
+}
+
+
 // TODO Add more test eventually.
