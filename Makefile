@@ -7,7 +7,7 @@ ARDUINO_CORE_DIR = $(ARDUINO_DIR)/hardware/arduino/avr/cores/arduino
 
 PORT = /dev/ttyACM0
 BAUD_RATE = 9600
-MAIN = stepper-speed-test
+MAIN = stepper-speed-trial
 
 AVR_CXX = avr-g++
 

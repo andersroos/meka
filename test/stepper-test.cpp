@@ -90,8 +90,6 @@ BOOST_AUTO_TEST_CASE(test_expected_micro_stepping_level_is_used)
    uint32_t steps = 0;
    while (s.step()) steps++;
    BOOST_CHECK_EQUAL(32, steps);
-   BOOST_CHECK_EQUAL(1, s.pos());
+   BOOST_CHECK_EQUAL(32, s.pos());
+   BOOST_CHECK_EQUAL(5, s.micro());
 }
-
-
-// TODO Add more test eventually.

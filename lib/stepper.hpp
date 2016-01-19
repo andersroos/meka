@@ -61,7 +61,7 @@ typedef uint32_t timestamp_t;
 struct stepper
 {
 
-   enum state { OFF, ACCEL, DECEL, TARGET_SPEED };
+   enum state:uint8_t { OFF, ACCEL, DECEL, TARGET_SPEED };
    
    // Create obj for motor.
    // 
