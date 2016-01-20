@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <iostream>
+#include <algorithm>
 
 #define OUTPUT 0
 #define INPUT 1

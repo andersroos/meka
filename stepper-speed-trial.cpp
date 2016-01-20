@@ -9,7 +9,7 @@
 #define ACCELERATION 2000
 #define SMOOTH_DELAY 300
 #define SPEED        1000
-#define DISTANCE     600
+#define DISTANCE     400
 #define STEPS        1e9
 
 #define DIR 2
@@ -43,6 +43,8 @@ void delay_unitl(uint32_t timestamp)
 }
 
 stepper stepper(DIR, STP, EN, M0, M1, M2, 1, SMOOTH_DELAY);
+
+int32_t distance = DISTANCE;
 
 void setup()
 {
@@ -79,6 +81,10 @@ void loop()
    uint32_t max_delay[6] = { 0 };
    uint8_t min_micro = 255;
    uint8_t max_micro = 0;
+
+   uint32_t max_stp = 0;
+   uint32_t max_stp_pos = 0;
+   uint32_t max_stp_micro = 0;
    
    for (uint32_t i = 0; i < STEPS; ++i) {
       uint32_t before = now_us();
@@ -88,14 +94,10 @@ void loop()
       
       if (!timestamp) break;
 
-      if (duration == 0) {
-         Serial.print("poop ");
-         Serial.println(stepper.pos());
-      }
-
-      if (timestamp == before) {
-         Serial.print("poop2 ");
-         Serial.println(stepper.pos());
+      if (max_stp < duration) {
+         max_stp = duration;
+         max_stp_pos = stepper.pos();
+         max_stp_micro = stepper.micro();
       }
 
       min_micro = min(micro, min_micro);
@@ -111,11 +113,18 @@ void loop()
 
       delay_unitl(timestamp);
    }
+
+   distance = -distance;
+   
    Serial.println("not good");
    Serial.print(" min_micro ");
    Serial.print(min_micro);
    Serial.print(" max_micro ");
    Serial.print(max_micro);
+   Serial.print(" max_stp_pos ");
+   Serial.print(max_stp_pos);
+   Serial.print(" max_stp_micro ");
+   Serial.print(max_stp_micro);
    Serial.println();
    for (uint8_t i = 0; i < 6; ++i) {
       Serial.print(i);
