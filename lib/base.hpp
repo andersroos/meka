@@ -1,9 +1,8 @@
+#pragma once
+
 //
 // Lib for cpp micro controller base stuff.
 //
-
-#ifndef MECHATRONICS_EVENT_HPP
-#define MECHATRONICS_EVENT_HPP
 
 // Led pin to flash in case of errors.
 #ifndef LED_PIN
@@ -26,5 +25,9 @@ void blink_error(uint8_t message)
       }
    }
 }
-      
-#endif
+
+// Return current time in micro seconds since device power up.
+uint32_t now_us()
+{
+   return micros();
+}

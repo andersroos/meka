@@ -97,4 +97,6 @@ depend:
 .PRECIOUS: %.o %.elf
 # DO NOT DELETE
 
+test/simulate.o: test/mock.hpp lib/stepper.hpp
 test/stepper-test.o: test/mock.hpp lib/stepper.hpp
+stepper-speed-trial.o: lib/base.hpp lib/stepper.hpp

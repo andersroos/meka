@@ -1,3 +1,5 @@
+#pragma once
+
 //
 // Stepper motor lib.
 //
@@ -9,10 +11,6 @@
 // WARNING: Will do busy waits for small (~1 us) waits, this is probably a bad idea for fast CPUs (>~100 MHz). Also
 // since we don't have nano timestamp we will have to wait 1 us extra all the time (473 to 474 can be 1ns if unlucky).
 //
-
-#pragma once
-
-#include <algorithm>
 
 using namespace std;
 
@@ -40,7 +38,7 @@ using namespace std;
 //
 
 // This is code dependet, below this delays will be upshifted for precision.
-#define SHIFT_THRESHOLD (1 << 30)
+#define SHIFT_THRESHOLD (uint32_t(1) << 30)
 
 // Target speed set from start.
 #define DEFAULT_TARGET_SPEED 10.0
@@ -52,11 +50,12 @@ using namespace std;
 // Stepper interface.
 //
 
-typedef uint8_t  pin_t;
-typedef uint8_t  pin_value_t;
+using pin_t       = uint8_t;
+using pin_value_t = uint8_t;
 
-typedef uint32_t delay_t;
-typedef uint32_t timestamp_t;
+using delay_t     = uint32_t;
+using timestamp_t = uint32_t;
+
 
 struct stepper
 {
@@ -235,7 +234,7 @@ stepper::shift_up()
       return;
    }
    
-   uint32_t max_delay = std::max(std::max(_delay0[MICRO_LEVELS - 1], _target_delay), _smooth_delay);
+   uint32_t max_delay = max(max(_delay0[MICRO_LEVELS - 1], _target_delay), _smooth_delay);
    while (max_delay < SHIFT_THRESHOLD) {
       _shift += 1;
       max_delay <<= 1;
@@ -332,7 +331,7 @@ stepper::step()
    bool aligned = (_pos & (int32_t(-1) << _micro)) == _pos;
 
    if (aligned) {
-      delay_t d = std::max(_delay, _target_delay);
+      delay_t d = max(_delay, _target_delay);
       auto micro = _micro;
 
       while (_micro > 0 and d < (_smooth_delay << _micro)) {
@@ -355,10 +354,11 @@ stepper::step()
          digitalWrite(_micro1_pin, _micro >> 1 & 1);
          digitalWrite(_micro1_pin, _micro >> 2 & 1);
          // Busy wait for mode change here, not good but ok.
-         while (start + MODE_CHANGE_US + 1 < now_us());
+
+         while (start + MODE_CHANGE_US + 1 >= now_us());
       }
    }
-
+ 
    int32_t distance = _target_pos - _pos;
 
    // Handle non stepping states (stopped) before stepping.
@@ -440,7 +440,7 @@ stepper::step()
          _accel_steps += 1;
          _delay -= delta;
       }
-      return_delay = std::max(_delay, _target_delay) >> _micro >> _shift;
+      return_delay = max(_delay, _target_delay) >> _micro >> _shift;
    }
 
    // Make sure time have passed, then downstep.
@@ -454,6 +454,6 @@ stepper::step()
    }
    digitalWrite(_step_pin, 0);
 
-   return std::max(step_timestamp + return_delay, now + STEPPING_PULSE_US + 1); // Downstep needs time too.
+   return max(step_timestamp + return_delay, now + STEPPING_PULSE_US + 1); // Downstep needs time too.
 }
 
