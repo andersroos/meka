@@ -65,6 +65,10 @@ struct stepper
    // Create obj for motor.
    // 
    // forward_value: the value on the dir pin that is forward
+   //
+   // smooth_delay: the delay where the motor runs well, the code will try to micro step to reach this delay and keep
+   //               delays between smooth_delay and smooth_delay / 2, smooth_delay / 2 have to be longer than is needed
+   //               for the step calculation or it will accelerate badly
    stepper(pin_t       dir_pin,
            pin_t       step_pin,
            pin_t       enable_pin,

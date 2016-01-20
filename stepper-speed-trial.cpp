@@ -6,15 +6,15 @@
 #include "lib/base.hpp"
 #include "lib/stepper.hpp"
 
-#define ACCELERATION 2e4
-#define SMOOTH_DELAY 700
-#define SPEED        10000
-#define DISTANCE     1500
+#define ACCELERATION 2000
+#define SMOOTH_DELAY 300
+#define SPEED        1000
+#define DISTANCE     600
 #define STEPS        1e9
 
 #define DIR 2
 #define STP 3
-#define EN  4
+#define EN  7
 
 #define M0 6
 #define M1 5
@@ -37,6 +37,11 @@ void wait_for_button_relese(uint8_t but)
    } while (last <= val);
 }
 
+void delay_unitl(uint32_t timestamp)
+{
+   while (timestamp >= now_us());
+}
+
 stepper stepper(DIR, STP, EN, M0, M1, M2, 1, SMOOTH_DELAY);
 
 void setup()
@@ -52,6 +57,11 @@ void setup()
 
 void loop()
 {
+   delay_unitl(stepper.off());
+   
+   digitalWrite(Y_LED, 1);
+   digitalWrite(G_LED, 0);
+   
    wait_for_button_relese(START_BUT);
 
    digitalWrite(Y_LED, 0);
@@ -60,32 +70,63 @@ void loop()
    stepper.target_speed(SPEED);
    stepper.acceleration(ACCELERATION);
    stepper.calibrate_position();
-   stepper.on();
+   delay_unitl(stepper.on());
    stepper.target_pos(DISTANCE);
+
+   uint32_t min_time_step[6] = { 1e9, 1e9, 1e9, 1e9, 1e9, 1e9 };
+   uint32_t max_time_step[6] = { 0 };
+   uint32_t min_delay[6] = { 1e9, 1e9, 1e9, 1e9, 1e9, 1e9 };
+   uint32_t max_delay[6] = { 0 };
+   uint8_t min_micro = 255;
+   uint8_t max_micro = 0;
    
    for (uint32_t i = 0; i < STEPS; ++i) {
-      // uint32_t start = now_us();
+      uint32_t before = now_us();
       uint32_t timestamp = stepper.step();
-      // Serial.print(i);
-      // Serial.print(" ");
-      // Serial.print(timestamp - start);
-      // Serial.print(" ");
-      // Serial.print(stepper.pos());
-      // Serial.print(" ");
-      // Serial.print(stepper.micro());
-      // Serial.println(" ");
+      uint32_t duration = now_us() - before;
+      uint8_t micro = stepper.micro();
       
       if (!timestamp) break;
-      
+
+      if (duration == 0) {
+         Serial.print("poop ");
+         Serial.println(stepper.pos());
+      }
+
+      if (timestamp == before) {
+         Serial.print("poop2 ");
+         Serial.println(stepper.pos());
+      }
+
+      min_micro = min(micro, min_micro);
+      max_micro = max(micro, max_micro);
+      min_time_step[micro] = min(duration, min_time_step[micro]);
+      max_time_step[micro] = max(duration, max_time_step[micro]);
+      min_delay[micro] = min(timestamp - before, min_delay[micro]);
+      max_delay[micro] = max(timestamp - before, max_delay[micro]);
+         
       if (digitalRead(EMERGENCY_BUT)) {
          break;
       }
 
-      while (timestamp >= now_us());
+      delay_unitl(timestamp);
    }
-   
-   digitalWrite(Y_LED, 1);
-   digitalWrite(G_LED, 0);
-   
-   stepper.off();
+   Serial.println("not good");
+   Serial.print(" min_micro ");
+   Serial.print(min_micro);
+   Serial.print(" max_micro ");
+   Serial.print(max_micro);
+   Serial.println();
+   for (uint8_t i = 0; i < 6; ++i) {
+      Serial.print(i);
+      Serial.print(": min_stp ");
+      Serial.print(min_time_step[i]);
+      Serial.print(" max_stp ");
+      Serial.print(max_time_step[i]);
+      Serial.print(" min_delay ");
+      Serial.print(min_delay[i]);
+      Serial.print(" max_delay ");
+      Serial.print(max_delay[i]);
+      Serial.println();
+   }
 }
