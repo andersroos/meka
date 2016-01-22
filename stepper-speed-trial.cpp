@@ -26,6 +26,8 @@
 #define Y_LED 10
 #define G_LED 11
 
+#define BIG_INT uint32_t(1e9)
+
 void wait_for_button_relese(uint8_t but)
 {
    uint8_t last = 0;
@@ -75,9 +77,9 @@ void loop()
    delay_unitl(stepper.on());
    stepper.target_pos(DISTANCE);
 
-   uint32_t min_time_step[6] = { 1e9, 1e9, 1e9, 1e9, 1e9, 1e9 };
+   uint32_t min_time_step[6] = { BIG_INT, BIG_INT, BIG_INT, BIG_INT, BIG_INT, BIG_INT };
    uint32_t max_time_step[6] = { 0 };
-   uint32_t min_delay[6] = { 1e9, 1e9, 1e9, 1e9, 1e9, 1e9 };
+   uint32_t min_delay[6] = { BIG_INT, BIG_INT, BIG_INT, BIG_INT, BIG_INT, BIG_INT };
    uint32_t max_delay[6] = { 0 };
    uint8_t min_micro = 255;
    uint8_t max_micro = 0;

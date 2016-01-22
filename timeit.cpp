@@ -14,7 +14,7 @@ void setup()
 
 uint32_t t0;
 uint32_t t1;
-float sum = 0;
+uint16_t sum = 0;
 uint32_t count;
 
 #define START 9000
@@ -40,9 +40,9 @@ void loop()
    
    
    t0 = micros();
-   for (float x = START + 1; x < START + 1e3; ++x) {
-      for (float y = START + 1; y < START + 1e3; ++y) {
-         sum += x + y;
+   for (uint16_t x = START + 1; x < START + 1e3; ++x) {
+      for (uint16_t y = START + 1; y < START + 1e3; ++y) {
+         sum += x % y + x / y;
          count++;
       }
    }

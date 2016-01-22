@@ -124,6 +124,11 @@ struct stepper
    // returns: position
    uint8_t micro() { return _micro; }
 
+   // Get last calculated delay.
+   //
+   // returns: delay in micro seconds
+   uint32_t delay() { return _return_delay; }
+   
    // Destructor.
    virtual ~stepper() {}
 
@@ -164,6 +169,8 @@ private:
 
    uint8_t  _shift;                 // Shift level for precision.
 
+   delay_t  _return_delay;          // Last returned delay, for debugging.
+
    // Book keping.
 
    state _state;
@@ -194,6 +201,7 @@ stepper::stepper(pin_t       dir_pin,
      _smooth_delay(smooth_delay),
      _target_delay(1e6),
      _shift(0),
+     _return_delay(0),
      _state(ACCEL)
 {
    pinMode(dir_pin, OUTPUT);
@@ -362,7 +370,7 @@ stepper::step()
          while (start + MODE_CHANGE_US + 1 >= now_us());
       }
    }
- 
+
    int32_t distance = _target_pos - _pos;
 
    // Handle non stepping states (stopped) before stepping.
@@ -375,7 +383,8 @@ stepper::step()
          _accel_steps = 0;
          _delay = _delay0[_micro];
          _state = ACCEL;
-         return 0;
+         _return_delay = 0;
+         return _return_delay;
       }
       
       if ((_dir > 0) == (distance < 0)) {
@@ -389,7 +398,8 @@ stepper::step()
          else {
             digitalWrite(_dir_pin, _forward_value);
          }
-         return now_us() + (_target_delay >> _shift);
+         _return_delay = _target_delay >> _shift;
+         return now_us() + _return_delay;
       }
    }
 
@@ -401,10 +411,10 @@ stepper::step()
 
    digitalWrite(_step_pin, 1);
    _pos += _dir;
-   
+
    // Stepping state changes, most important rule first.
 
-   if (_dir * distance <= int32_t(_accel_steps)) {
+   if ((_dir < 0) != (distance < 0) or abs(distance) <= _accel_steps) {
       // We are going in the wrong direction. Or we need to break now or we will overshoot.
       _state = DECEL;
    }
@@ -419,7 +429,6 @@ stepper::step()
 
    // Do it
 
-   uint32_t return_delay = 0;
    if (_state == DECEL) {
       if (_accel_steps <= 1) {
          _accel_steps = 0;
@@ -427,9 +436,9 @@ stepper::step()
       }
       else {
          _accel_steps -= 1;
-         _delay += _delay * 2 / (4 * _accel_steps - 1);
+         _delay += (_delay * 2) / (4 * _accel_steps - 1);
       }
-      return_delay = _delay >> _micro >> _shift;
+      _return_delay = _delay >> _micro >> _shift;
    }
    else {
       if (_state == ACCEL) {
@@ -444,9 +453,9 @@ stepper::step()
          _accel_steps += 1;
          _delay -= delta;
       }
-      return_delay = max(_delay, _target_delay) >> _micro >> _shift;
+      _return_delay = max(_delay, _target_delay) >> _micro >> _shift;
    }
-
+   
    // Make sure time have passed, then downstep.
 
    uint32_t now;   
@@ -458,6 +467,6 @@ stepper::step()
    }
    digitalWrite(_step_pin, 0);
 
-   return max(step_timestamp + return_delay, now + STEPPING_PULSE_US + 1); // Downstep needs time too.
+   return max(step_timestamp + _return_delay, now + STEPPING_PULSE_US + 1); // Downstep needs time too.
 }
 
