@@ -205,7 +205,7 @@ stepper::stepper(pin_t       dir_pin,
      _target_delay(1e6),
      _shift(0),
      _return_delay(0),
-     _state(ACCEL)
+     _state(OFF)
 {
    pinMode(dir_pin, OUTPUT);
    pinMode(step_pin, OUTPUT);
@@ -216,10 +216,6 @@ stepper::stepper(pin_t       dir_pin,
    
    digitalWrite(dir_pin, forward_value);
    digitalWrite(enable_pin, !STEPPER_ENABLE);
-   digitalWrite(micro0_pin, 0);
-   digitalWrite(micro1_pin, 0);
-   digitalWrite(micro2_pin, 0);
-   
    acceleration(DEFAULT_ACCEL);
    target_speed(DEFAULT_TARGET_SPEED);
 }
@@ -307,6 +303,10 @@ stepper::on()
    uint32_t now = now_us();
    digitalWrite(_enable_pin, STEPPER_ENABLE);
    _state = ACCEL;
+   _accel_steps = 0;
+   micro_up(MAX_MICRO - _micro);
+   micro_set();
+   _delay = _delay0[_micro];
    return now + ENABLE_US + 1;
 }
 
@@ -315,8 +315,6 @@ stepper::off()
 {
    uint32_t now = now_us();
    digitalWrite(_enable_pin, !STEPPER_ENABLE);
-   _accel_steps = 0;
-   _delay = _delay0[_micro];
    _state = OFF;
    return now + ENABLE_US + 1;
 }
@@ -353,7 +351,7 @@ stepper::target_speed(float speed)
    
    _target_delay = delay_t(1e6 / speed);
 
-   if (!is_stopped() and _state != OFF) {
+   if (!is_stopped()) {
       // Make sure state changes based on target speed if running.
       if (_target_delay > _delay) {
          _state = DECEL;
@@ -375,12 +373,15 @@ stepper::step()
       delay_t d = max(_delay, _target_delay);
       auto micro = _micro;
 
-      while (_micro > 0 and d < (_smooth_delay << _micro)) {
-         micro_down();
+      if (_state == ACCEL) {
+         while (_micro > 0 and d < (_smooth_delay << (_micro - 1))) {
+            micro_down();
+         }
       }
-      
-      while (_micro < MAX_MICRO and d > (_smooth_delay << _micro)) {
-         micro_up();
+      else {
+         while (_micro < MAX_MICRO and d > (_smooth_delay << _micro)) {
+            micro_up();
+         }
       }
 
       if (micro != _micro) {
