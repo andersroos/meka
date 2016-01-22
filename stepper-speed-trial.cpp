@@ -6,7 +6,7 @@
 #include "lib/base.hpp"
 #include "lib/stepper.hpp"
 
-#define SMOOTH_DELAY 500
+#define SMOOTH_DELAY 300
 #define ACCELERATION 2000
 #define SPEED        1000
 #define DISTANCE     600
@@ -75,7 +75,7 @@ void loop()
    stepper.acceleration(ACCELERATION);
    stepper.calibrate_position();
    delay_unitl(stepper.on());
-   stepper.target_pos(DISTANCE);
+   stepper.target_pos(distance);
 
    uint32_t min_time_step[6] = { BIG_INT, BIG_INT, BIG_INT, BIG_INT, BIG_INT, BIG_INT };
    uint32_t max_time_step[6] = { 0 };
@@ -98,7 +98,7 @@ void loop()
 
       if (max_stp < duration) {
          max_stp = duration;
-         max_stp_pos = stepper.pos();
+         max_stp_pos = abs(stepper.pos());
          max_stp_micro = stepper.micro();
       }
 

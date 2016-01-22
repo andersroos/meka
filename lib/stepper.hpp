@@ -367,37 +367,33 @@ stepper::target_speed(float speed)
 timestamp_t
 stepper::step()
 {
-   bool aligned = (_pos & (int32_t(-1) << _micro)) == _pos;
+   delay_t d = max(_delay, _target_delay);
+   auto micro = _micro;
 
-   if (aligned) {
-      delay_t d = max(_delay, _target_delay);
-      auto micro = _micro;
-
-      if (_state == ACCEL) {
-         while (_micro > 0 and d < (_smooth_delay << (_micro - 1))) {
-            micro_down();
-         }
+   if (_state == ACCEL) {
+      while ((_pos & 1) == 0 and _micro > 0 and d < (_smooth_delay << (_micro - 1))) {
+         micro_down();
       }
-      else {
-         while (_micro < MAX_MICRO and d > (_smooth_delay << _micro)) {
-            micro_up();
-         }
+   }
+   else {
+      while (_micro < MAX_MICRO and d > (_smooth_delay << _micro)) {
+         micro_up();
       }
+   }
 
-      if (micro != _micro) {
-         uint32_t start = now_us();
-         micro_set();
-         // Busy wait for mode change here, not good but ok.
-
-         while (start + MODE_CHANGE_US + 1 >= now_us());
-      }
+   if (micro != _micro) {
+      uint32_t start = now_us();
+      micro_set();
+      // Busy wait for mode change here, not good but ok.
+      
+      while (start + MODE_CHANGE_US + 1 >= now_us());
    }
 
    int32_t distance = _target_pos - _pos;
 
    // Handle non stepping states (stopped) before stepping.
 
-   if (aligned and _accel_steps <= 1) {
+   if (_accel_steps <= 1 and (_pos & (int32_t(-1) << _micro)) == _pos) {
       // It is possible to stop now if we want to, no need to decelerate more.
 
       if (distance == 0) {

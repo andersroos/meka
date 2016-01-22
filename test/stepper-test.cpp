@@ -31,7 +31,7 @@ BOOST_AUTO_TEST_CASE(test_simulation_scenario_move_1500)
    }
 
    BOOST_CHECK(total_d < 5.7e5);
-   BOOST_CHECK(5.4e5 < total_d);
+   BOOST_CHECK(5.3e5 < total_d);
 }
 
 BOOST_AUTO_TEST_CASE(test_simulation_scenario_move_backwards_1500)
@@ -53,7 +53,7 @@ BOOST_AUTO_TEST_CASE(test_simulation_scenario_move_backwards_1500)
    }
 
    BOOST_CHECK(total_d < 5.7e5);
-   BOOST_CHECK(5.4e5 < total_d);
+   BOOST_CHECK(5.3e5 < total_d);
 }
 
 BOOST_AUTO_TEST_CASE(test_change_target_pos_mid_run)

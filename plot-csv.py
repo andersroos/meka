@@ -7,11 +7,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-def plot(x, y, *dfs):
+def plot(x, y, df):
     """ Plot x and y axis of dfs in common graph. """
-    ax = None
-    for df in dfs:
-        ax = df[[x, y]].set_index(x).plot(kind='line', ylim=(0, None), xlim=(0, None), ax=ax)
+    cols = [x] + y.split(',')
+    df[cols].set_index(x).plot(kind='line', ylim=(0, None), xlim=(0, None))
 
 args = sys.argv[1:]
 
@@ -20,6 +19,7 @@ print("reading csv file ", filename)
 
 df = pd.read_csv(filename)
 
+pd.set_option('display.max_rows', int(1e9))
 print(df)
 
 while args:
