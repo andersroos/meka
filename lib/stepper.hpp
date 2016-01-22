@@ -30,8 +30,8 @@ using namespace std;
 // Minimal pulse duration for stepping.
 #define STEPPING_PULSE_US 1
 
-// Number of micro levels including level 0 (1 micro step per step). So if the driver can do 32 it should be 6.
-#define MICRO_LEVELS 6
+// Max level of micro (0 is also a level, 1 micro step per step). So if the driver can do 32 it should be 5.
+#define MAX_MICRO 5
 
 //
 // Stepping constants.
@@ -165,7 +165,7 @@ private:
 
    // Delays.
    
-   delay_t  _delay0[MICRO_LEVELS];  // Starting delay (this is acceleration constant), per micro level.
+   delay_t  _delay0[MAX_MICRO + 1]; // Starting delay (this is acceleration constant), per micro level.
    delay_t  _delay;                 // Current delay (time needed for step to move physically).
    delay_t  _smooth_delay;          // Delay where motor runs smoothly (ideal delay), when to change micro level.
    delay_t  _target_delay;          // This is our target speed.
@@ -233,7 +233,7 @@ stepper::is_stopped()
 void
 stepper::shift_down()
 {
-   for (uint8_t i = 0; i < MICRO_LEVELS; ++i) {
+   for (uint8_t i = 0; i <= MAX_MICRO; ++i) {
       _delay0[i] >>= _shift;
    }
    _delay >>= _shift;
@@ -249,13 +249,13 @@ stepper::shift_up()
       return;
    }
    
-   uint32_t max_delay = max(max(_delay0[MICRO_LEVELS - 1], _target_delay), _smooth_delay);
+   uint32_t max_delay = max(max(_delay0[MAX_MICRO], _target_delay), _smooth_delay);
    while (max_delay < SHIFT_THRESHOLD) {
       _shift += 1;
       max_delay <<= 1;
    }
 
-   for (uint8_t i = 0; i < MICRO_LEVELS; ++i) {
+   for (uint8_t i = 0; i <= MAX_MICRO; ++i) {
       _delay0[i] <<= _shift;
    }
    _delay <<= _shift;
@@ -331,7 +331,7 @@ stepper::acceleration(float accel)
    shift_down();
 
    float d0 = sqrt(1/accel) * 1e6;
-   for (uint8_t m = 0; m < MICRO_LEVELS; ++m) {
+   for (uint8_t m = 0; m <= MAX_MICRO; ++m) {
       _delay0[m] = uint32_t(d0 * sqrt(1 << m));
    }
    
@@ -379,7 +379,7 @@ stepper::step()
          micro_down();
       }
       
-      while (_micro < MICRO_LEVELS - 1 and d > (_smooth_delay << _micro)) {
+      while (_micro < MAX_MICRO and d > (_smooth_delay << _micro)) {
          micro_up();
       }
 
