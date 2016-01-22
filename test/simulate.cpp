@@ -20,23 +20,22 @@ void stepper_move_csv()
    // s.target_pos(1500);
 
    stepper s(0, 0, 0, 0, 0, 0,
-             1, 300);
+             1, 500);
    s.acceleration(2000);
    s.target_speed(1000);
    s.on();
-   s.target_pos(600);
+   s.target_pos(400);
 
    cout << "time,pos,step,delay,micro,velocity" << endl;
    
    uint32_t time = 0;
    uint32_t steps = 0;
    while (true) {
-      uint32_t before = now_us();
-      uint32_t timestamp = s.step();
-
-      if (!timestamp) break;
+      s.step();
+      uint32_t delay = s.delay();
       
-      uint32_t delay = timestamp - before;
+      if (!delay) break;
+
       uint32_t micro = s.micro();
       steps++;
       float pos = float(s.pos()) / (1 << micro);

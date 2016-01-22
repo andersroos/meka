@@ -117,21 +117,18 @@ struct stepper
    // Get raw position, note that this is shifted when micro stepping.
    //
    // returns: position
-   int32_t pos() { return _pos; }
+   inline int32_t pos() { return _pos; }
 
    // Get current micro stepping level.
    //
    // returns: position
-   uint8_t micro() { return _micro; }
+   inline uint8_t micro() { return _micro; }
 
    // Get last calculated delay.
    //
    // returns: delay in micro seconds
-   uint32_t delay() { return _return_delay; }
+   inline uint32_t delay() { return _return_delay; }
    
-   // Destructor.
-   virtual ~stepper() {}
-
 private:
 
    bool is_stopped();
@@ -140,6 +137,12 @@ private:
 
    void shift_up();
 
+   void micro_down(uint8_t levels);
+
+   void micro_up(uint8_t levels);
+
+   void micro_set();
+   
    // Pins and pin values.
    
    pin_t       _dir_pin;
@@ -221,7 +224,7 @@ stepper::stepper(pin_t       dir_pin,
    target_speed(DEFAULT_TARGET_SPEED);
 }
 
-bool
+inline bool
 stepper::is_stopped()
 {
    return _state == OFF or (_pos == _target_pos and _accel_steps == 0);
@@ -258,6 +261,32 @@ stepper::shift_up()
    _delay <<= _shift;
    _target_delay <<= _shift;
    _smooth_delay <<= _shift;
+}
+
+inline void
+stepper::micro_down(uint8_t levels=1)
+{
+   _micro -= levels;
+   _accel_steps >>= levels;
+   _pos >>= levels;
+   _target_pos >>= levels;
+}
+
+inline void
+stepper::micro_up(uint8_t levels=1)
+{
+   _micro += levels;
+   _accel_steps <<= levels;
+   _pos <<= levels;
+   _target_pos <<= levels;
+}
+
+inline void
+stepper::micro_set()
+{
+   digitalWrite(_micro0_pin, _micro >> 0 & 1);
+   digitalWrite(_micro1_pin, _micro >> 1 & 1);
+   digitalWrite(_micro1_pin, _micro >> 2 & 1);
 }
 
 void
@@ -311,7 +340,7 @@ stepper::acceleration(float accel)
    shift_up();
 }
 
-void
+inline void
 stepper::target_pos(int32_t pos)
 {
    _target_pos = pos << _micro;
@@ -347,24 +376,16 @@ stepper::step()
       auto micro = _micro;
 
       while (_micro > 0 and d < (_smooth_delay << _micro)) {
-         _micro -= 1;
-         _accel_steps >>= 1;
-         _pos >>= 1;
-         _target_pos >>= 1;
+         micro_down();
       }
       
-      while (_micro < 5 and d > (_smooth_delay << _micro)) {
-         _micro += 1;
-         _accel_steps <<= 1;
-         _pos <<= 1;
-         _target_pos <<= 1;
+      while (_micro < MICRO_LEVELS - 1 and d > (_smooth_delay << _micro)) {
+         micro_up();
       }
 
       if (micro != _micro) {
          uint32_t start = now_us();
-         digitalWrite(_micro0_pin, _micro >> 0 & 1);
-         digitalWrite(_micro1_pin, _micro >> 1 & 1);
-         digitalWrite(_micro1_pin, _micro >> 2 & 1);
+         micro_set();
          // Busy wait for mode change here, not good but ok.
 
          while (start + MODE_CHANGE_US + 1 >= now_us());

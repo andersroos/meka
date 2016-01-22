@@ -6,10 +6,10 @@
 #include "lib/base.hpp"
 #include "lib/stepper.hpp"
 
+#define SMOOTH_DELAY 500
 #define ACCELERATION 2000
-#define SMOOTH_DELAY 300
 #define SPEED        1000
-#define DISTANCE     400
+#define DISTANCE     600
 #define STEPS        1e9
 
 #define DIR 2
