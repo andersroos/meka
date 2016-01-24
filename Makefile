@@ -28,8 +28,8 @@ TEST_OBJS = test/run-tests.o \
 	    test/stepper-test.o \
 
 # To build core.a build something in the IDE with verbose compiler output (preferences) then find the .a
-# file location in tmp and copy it to lib dir (libcore.a).
-ARDUINO_LIBS = -lcore -lm -lc
+# file location in tmp and copy it to lib dir (libcore-arduino-uno.a).
+ARDUINO_LIBS = -lcore-arduino-uno -lm -lc
 
 CXXFLAGS  =  -c -g -std=c++11 -Wall
 CXXFLAGS += -Os # Optimize for size.
