@@ -18,6 +18,7 @@ TEENSY_CXXFLAGS  = -D__MK20DX256__ # ?
 TEENSY_CXXFLAGS += -mcpu=cortex-m4 -mthumb # Compile for Cortex M4 and Teensy.
 TEENSY_CXXFLAGS += -fno-exceptions  -fno-rtti -felide-constructors # Skip not needed/bad stuff.
 TEENSY_CXXFLAGS += -fsingle-precision-constant # Constants are floats not double.
+TEENSY_CXXFLAGS += -fgnu-keywords # Allow typeof (which is not c++ 11).
 TEENSY_CXXFLAGS += -DTEENSYDUINO=127 -DARDUINO=10606 # Teensy/Arduino IDE version?
 TEENSY_CXXFLAGS += -DF_CPU=96000000 # Clock frequency.
 TEENSY_CXXFLAGS += -DARDUINO_ARCH_AVR -DUSB_SERIAL # ?
