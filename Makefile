@@ -1,10 +1,7 @@
 MAKEFILE_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 BASE_DIR := $(realpath $(CURDIR)/$(MAKEFILE_DIR))
 
-# Local makefile to override locations and other variables.
--include local.mk
-
-ARDUINO_IDE_DIR ?= $(HOME)/opt/arduino-1.6.7
+ARDUINO_IDE_DIR ?= $(HOME)/opt/arduino-1.6.6
 
 PORT ?= /dev/ttyACM0
 
@@ -19,7 +16,9 @@ BAUD_RATE = 9600
 #BOARD = ArduinoUno
 BOARD = Teensy32
 
-MAIN = blink
+MAIN = stepper-speed-trial
+#MAIN = pendel-spedd-trial
+#MAIN = stepper
 
 EXTRA_OBJS = # $(ARDUINO_DIR)/libraries/Servo/src/avr/Servo.o
 

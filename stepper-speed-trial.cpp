@@ -5,6 +5,7 @@
 #include "Arduino.h"
 #include "lib/base.hpp"
 #include "lib/stepper.hpp"
+#include "pendel-pins.hpp"
 
 #define SMOOTH_DELAY 300
 #define ACCELERATION 2000
@@ -12,21 +13,10 @@
 #define DISTANCE     600
 #define STEPS        1e9
 
-#define DIR 2
-#define STP 3
-#define EN  7
-
-#define M0 6
-#define M1 5
-#define M2 4
-
-#define START_BUT 12
-#define EMERGENCY_BUT 13
-
-#define Y_LED 10
-#define G_LED 11
-
 #define BIG_INT uint32_t(1e9)
+
+#define START_BUT     M_BUT
+#define EMERGENCY_BUT O_BUT
 
 void wait_for_button_relese(uint8_t but)
 {
@@ -44,7 +34,7 @@ void delay_unitl(uint32_t timestamp)
    while (timestamp >= now_us());
 }
 
-stepper stepper(DIR, STP, EN, M0, M1, M2, 1, SMOOTH_DELAY);
+stepper stepper(DIR, STP, EN, M0, M1, M2, DIR_O, SMOOTH_DELAY);
 
 int32_t distance = DISTANCE;
 
@@ -57,6 +47,9 @@ void setup()
    
    pinMode(Y_LED, OUTPUT);
    pinMode(G_LED, OUTPUT);
+   pinMode(BUILTIN_LED, OUTPUT);
+
+   digitalWrite(BUILTIN_LED, 1);
 }
 
 void loop()

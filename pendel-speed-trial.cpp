@@ -3,27 +3,7 @@
 //
 
 #include "Arduino.h"
-
-#define M_POT A0
-#define O_POT A1
-
-#define M_BUT 12
-#define O_BUT 13
-
-#define Y_LED 10
-#define G_LED 11
-
-#define M_END 8
-#define O_END 9
-
-#define POT A2
-
-#define DIR 2
-#define STP 3
-#define EN  4
-
-#define DIR_M 1
-#define DIR_O 0
+#include "pendel-pins.hpp"
 
 #define ENABLE  0
 #define DISABLE  1
