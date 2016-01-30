@@ -7,10 +7,10 @@
 #include "lib/stepper.hpp"
 #include "pendel-pins.hpp"
 
-#define SMOOTH_DELAY 300
-#define ACCELERATION 2000
-#define SPEED        1000
-#define DISTANCE     600
+#define SMOOTH_DELAY 200
+#define ACCELERATION 4000
+#define SPEED        6000
+#define DISTANCE     10000
 #define STEPS        1e9
 
 #define BIG_INT uint32_t(1e9)
@@ -74,13 +74,10 @@ void loop()
    uint32_t max_time_step[6] = { 0 };
    uint32_t min_delay[6] = { BIG_INT, BIG_INT, BIG_INT, BIG_INT, BIG_INT, BIG_INT };
    uint32_t max_delay[6] = { 0 };
+   uint32_t counts[6] = { 0 };
    uint8_t min_micro = 255;
    uint8_t max_micro = 0;
 
-   uint32_t max_stp = 0;
-   uint32_t max_stp_pos = 0;
-   uint32_t max_stp_micro = 0;
-   
    for (uint32_t i = 0; i < STEPS; ++i) {
       uint32_t before = now_us();
       uint32_t timestamp = stepper.step();
@@ -89,19 +86,14 @@ void loop()
       
       if (!timestamp) break;
 
-      if (max_stp < duration) {
-         max_stp = duration;
-         max_stp_pos = abs(stepper.pos());
-         max_stp_micro = stepper.micro();
-      }
-
+      counts[micro]++;
       min_micro = min(micro, min_micro);
       max_micro = max(micro, max_micro);
       min_time_step[micro] = min(duration, min_time_step[micro]);
       max_time_step[micro] = max(duration, max_time_step[micro]);
       min_delay[micro] = min(timestamp - before, min_delay[micro]);
       max_delay[micro] = max(timestamp - before, max_delay[micro]);
-         
+      
       if (digitalRead(EMERGENCY_BUT)) {
          break;
       }
@@ -112,15 +104,6 @@ void loop()
    distance = -distance;
    
    Serial.println("not good");
-   Serial.print(" min_micro ");
-   Serial.print(min_micro);
-   Serial.print(" max_micro ");
-   Serial.print(max_micro);
-   Serial.print(" max_stp_pos ");
-   Serial.print(max_stp_pos);
-   Serial.print(" max_stp_micro ");
-   Serial.print(max_stp_micro);
-   Serial.println();
    for (uint8_t i = 0; i < 6; ++i) {
       Serial.print(i);
       Serial.print(": min_stp ");
@@ -131,6 +114,8 @@ void loop()
       Serial.print(min_delay[i]);
       Serial.print(" max_delay ");
       Serial.print(max_delay[i]);
+      Serial.print(" count ");
+      Serial.print(counts[i]);
       Serial.println();
    }
 }

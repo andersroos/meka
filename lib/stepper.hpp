@@ -282,7 +282,7 @@ stepper::micro_set()
 {
    digitalWrite(_micro0_pin, _micro >> 0 & 1);
    digitalWrite(_micro1_pin, _micro >> 1 & 1);
-   digitalWrite(_micro1_pin, _micro >> 2 & 1);
+   digitalWrite(_micro2_pin, _micro >> 2 & 1);
 }
 
 void

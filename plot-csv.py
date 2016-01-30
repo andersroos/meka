@@ -19,7 +19,7 @@ print("reading csv file ", filename)
 
 df = pd.read_csv(filename)
 
-pd.set_option('display.max_rows', int(1e9))
+#pd.set_option('display.max_rows', int(1e9))
 print(df)
 
 while args:

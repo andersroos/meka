@@ -20,11 +20,11 @@ void stepper_move_csv()
    // s.target_pos(1500);
 
    stepper s(0, 0, 0, 0, 0, 0,
-             1, 600);
-   s.acceleration(2000);
-   s.target_speed(1000);
+             1, 300);
+   s.acceleration(400);
+   s.target_speed(4000);
    s.on();
-   s.target_pos(600);
+   s.target_pos(10000);
 
    cout << "time,pos,step,delay,micro,speed" << endl;
    
