@@ -50,13 +50,6 @@ using namespace std;
 // Stepper interface.
 //
 
-using pin_t       = uint8_t;
-using pin_value_t = uint8_t;
-
-using delay_t     = uint32_t;
-using timestamp_t = uint32_t;
-
-
 struct stepper
 {
 

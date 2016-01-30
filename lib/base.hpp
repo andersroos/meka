@@ -9,6 +9,13 @@
 #define LED_PIN 14
 #endif
 
+using pin_t       = uint8_t;
+using pin_value_t = uint8_t;
+
+using delay_t     = uint32_t;
+using timestamp_t = uint32_t;
+
+
 // Blink error message, the blink will be 1s off then 125ms on/off for each bit in argument. So for example
 // 0b11001100 will be two 250ms flashes, then 1250ms off.
 void blink_error(uint8_t message)
@@ -27,7 +34,7 @@ void blink_error(uint8_t message)
 }
 
 // Return current time in micro seconds since device power up.
-uint32_t now_us()
+timestamp_t now_us()
 {
    return micros();
 }

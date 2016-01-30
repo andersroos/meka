@@ -16,8 +16,9 @@ BAUD_RATE = 9600
 #BOARD = ArduinoUno
 BOARD = Teensy32
 
-MAIN = stepper-speed-trial
-#MAIN = pendel-spedd-trial
+MAIN = stepper-changing-speed-trial
+#MAIN = stepper-speed-trial
+#MAIN = pendel-speed-trial
 #MAIN = stepper
 
 EXTRA_OBJS = # $(ARDUINO_DIR)/libraries/Servo/src/avr/Servo.o
