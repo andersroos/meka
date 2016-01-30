@@ -8,9 +8,9 @@
 #include "pendel-pins.hpp"
 
 #define SMOOTH_DELAY 200
-#define ACCELERATION 4000
-#define SPEED        6000
-#define DISTANCE     10000
+#define ACCELERATION 50000
+#define SPEED        12000
+#define DISTANCE     1500
 #define STEPS        1e9
 
 #define BIG_INT uint32_t(1e9)
@@ -78,6 +78,7 @@ void loop()
    uint8_t min_micro = 255;
    uint8_t max_micro = 0;
 
+   uint32_t start = now_us();
    for (uint32_t i = 0; i < STEPS; ++i) {
       uint32_t before = now_us();
       uint32_t timestamp = stepper.step();
@@ -102,8 +103,12 @@ void loop()
    }
 
    distance = -distance;
+
+   uint32_t total_dur = now_us() - start;
    
    Serial.println("not good");
+   Serial.print("total ");
+   Serial.println(total_dur / 1000);
    for (uint8_t i = 0; i < 6; ++i) {
       Serial.print(i);
       Serial.print(": min_stp ");
