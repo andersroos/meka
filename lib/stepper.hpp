@@ -335,6 +335,7 @@ inline void
 stepper::target_pos(int32_t pos)
 {
    _target_pos = pos << _micro;
+   _state = ACCEL;
 }
 
 void

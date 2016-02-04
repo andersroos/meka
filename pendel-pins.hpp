@@ -6,7 +6,7 @@
 #define BUILTIN_LED 13
 
 #define M_POT A9
-#define O_POT -
+#define O_POT A8
 
 #define M_BUT 2
 #define O_BUT 3
@@ -26,5 +26,4 @@
 
 #define DIR_M 1
 #define DIR_O 0
-
 

@@ -16,7 +16,8 @@ BAUD_RATE = 9600
 #BOARD = ArduinoUno
 BOARD = Teensy32
 
-MAIN = stepper-changing-speed-trial
+MAIN = pendel-trial
+#MAIN = stepper-changing-speed-trial
 #MAIN = stepper-speed-trial
 #MAIN = pendel-speed-trial
 #MAIN = stepper
