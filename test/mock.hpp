@@ -9,6 +9,12 @@
 #define OUTPUT 0
 #define INPUT 1
 
+using pin_t       = uint8_t;
+using pin_value_t = uint8_t;
+
+using delay_t     = uint32_t;
+using timestamp_t = uint32_t;
+
 std::vector<uint8_t> pin_modes(256);
 std::vector<uint16_t> pin_values(256);
 

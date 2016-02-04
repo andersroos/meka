@@ -3,6 +3,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "mock.hpp"
+#include "lib/util.hpp"
 #include "lib/stepper.hpp"
 
 
