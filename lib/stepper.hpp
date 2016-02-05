@@ -95,6 +95,11 @@ struct stepper
    // pos: target position in absolute steps
    void target_pos(int32_t pos);
 
+   // Set target position relative to current position, can be called at any time.
+   //
+   // pos: target position relative to current position
+   void target_rel_pos(int32_t rel_pos);
+   
    // Set target speed, can be called at any time. If changing from a higer to a lower speed the motor will decelrate to
    // that speed.
    //
@@ -110,7 +115,12 @@ struct stepper
    // Get raw position, note that this is shifted when micro stepping.
    //
    // returns: position
-   inline int32_t pos() { return _pos; }
+   inline int32_t raw_pos() { return _pos; }
+   
+   // Get position, will be rounded down if micro stepping.
+   //
+   // returns: position
+   inline int32_t pos() { return _pos >> _micro; }
 
    // Get current micro stepping level.
    //
@@ -122,6 +132,11 @@ struct stepper
    // returns: delay in micro seconds
    inline uint32_t delay() { return _return_delay; }
    
+   // Get current target position.
+   //
+   // returns: current target position
+   inline uint32_t target_pos() { return _target_pos >> _micro; }
+
 private:
 
    bool is_stopped();
@@ -336,6 +351,12 @@ stepper::target_pos(int32_t pos)
 {
    _target_pos = pos << _micro;
    _state = ACCEL;
+}
+
+inline void
+stepper::target_rel_pos(int32_t rel_pos)
+{
+   target_pos((_pos >> _micro) + rel_pos);
 }
 
 void

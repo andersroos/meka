@@ -26,37 +26,14 @@ button start_but(START_BUT);
 
 button emergency_but(EMERGENCY_BUT);
 
-void setup()
+int32_t m_end_pos;
+int32_t o_end_pos;
+
+// Wait for M_BUT, return accel value based on M_POT, will print changes.
+void setup_standby(uint32_t& accel)
 {
-   Serial.begin(9600);
-   
-   pinMode(START_BUT, INPUT);
-   pinMode(EMERGENCY_BUT, INPUT);
-   
-   pinMode(Y_LED, OUTPUT);
-   pinMode(G_LED, OUTPUT);
-   pinMode(BUILTIN_LED, OUTPUT);
-
-   pinMode(M_POT, INPUT);
-   pinMode(O_POT, INPUT);
-
-   digitalWrite(BUILTIN_LED, 1);
-
    delay_unitl(stepper.off());
-   
-   stepper.target_speed(MAX_SPEED);
-   stepper.calibrate_position(); 
-}
 
-uint32_t target_pos = 0;
-timestamp_t pos_read = 0;
-
-uint32_t accel = 0;
-
-
-void loop()
-{
-   
    digitalWrite(Y_LED, 1);
    digitalWrite(G_LED, 0);
 
@@ -72,30 +49,174 @@ void loop()
          delay(50);
       }
    }
-   stepper.acceleration(accel);
+}
 
+// After waiting on button press, move stepper to a place where none of the limiter switches are enabled. Then move to
+// the motor until the motor switch, reset the stepper, then move to the other side. Move motor to center pos and return
+// other pos.
+void calibrate(int32_t& m_end_pos, int32_t& o_end_pos)
+{
+   delay_unitl(stepper.off());
+
+   // We need a fast acceleration to be able to stop when reaching end, but not crazy fast so we miss steps.
+   stepper.acceleration(MAX_ACCELERATION / 2);
+
+   // As fast as possible but we need to be able to stop before crashing.
+   stepper.target_speed(800);
+
+   pin_value_t blink = 0;
+
+   m_end_pos = 0;
+   o_end_pos = 0;
+   
+   while (not start_but.pressed()) {
+      digitalWrite(Y_LED, blink);
+      blink = not blink;
+      delay(200);
+   }
+   
    digitalWrite(Y_LED, 0);
    digitalWrite(G_LED, 1);
-   
+
    delay_unitl(stepper.on());
+   stepper.target_pos(0);
+   stepper.calibrate_position();
+   
+   // If pos is at m end, move a bit so it is no longer lit.
+   if (not digitalRead(M_END)) {
 
-   Serial.println("running");
+      stepper.target_rel_pos(200);
       
-   do {
-      uint32_t timestamp = stepper.step();
+      while (true) {
+         timestamp_t timestamp = stepper.step();
+         if (not timestamp) break;
+         delay_unitl(timestamp);
 
-      if (now_us() - pos_read > 10000) {
-         target_pos = map(analogRead(M_POT), 0, 1023, 0, 1500);
-         stepper.target_pos(target_pos);
-         pos_read = now_us();
+         if (emergency_but.value()) {
+            stepper.off();
+            return;
+         }
+      }
+   }
+
+   // Move until m end.
+   stepper.target_rel_pos(-2000);
+   bool detected = false;
+   while (true) {
+      timestamp_t timestamp = stepper.step();
+      
+      if (not detected and not digitalRead(M_END)) {
+         detected = true;
+         stepper.target_rel_pos(1);
       }
       
+      if (not timestamp) break;
       delay_unitl(timestamp);
       
-   } while (not emergency_but.value());
+      if (emergency_but.value()) {
+         stepper.off();
+         return;
+      }
+   }
+   stepper.calibrate_position();
 
-   Serial.println("standby");
+   // Move stepper until o end.
+   stepper.target_pos(2000);
+   detected = false;
+   while (true) {
+      timestamp_t timestamp = stepper.step();
+      
+      if (not detected and not digitalRead(O_END)) {
+         detected = true;
+         stepper.target_rel_pos(-1);
+      }
+      
+      if (not timestamp) break;
+      delay_unitl(timestamp);
+
+      if (emergency_but.value()) {
+         stepper.off();
+         return;
+      }
+   }
+   o_end_pos = stepper.pos();
+
+   // Move stepper to mid.
+   stepper.target_pos(620);
+   while (true) {
+         timestamp_t timestamp = stepper.step();
+         if (not timestamp) break;
+         delay_unitl(timestamp);
+   }
+
+   Serial.print("o end ");
+   Serial.println(o_end_pos);
+   
+   digitalWrite(Y_LED, 1);
+   digitalWrite(G_LED, 0);
+}
+
+void setup()
+{
+   Serial.begin(9600);
+   
+   pinMode(START_BUT, INPUT);
+   pinMode(EMERGENCY_BUT, INPUT);
+   
+   pinMode(Y_LED, OUTPUT);
+   pinMode(G_LED, OUTPUT);
+   pinMode(BUILTIN_LED, OUTPUT);
+
+   pinMode(M_END, INPUT);
+   pinMode(O_END, INPUT);
+   
+   pinMode(M_POT, INPUT);
+   pinMode(O_POT, INPUT);
+
+   digitalWrite(BUILTIN_LED, 1);
 
    delay_unitl(stepper.off());
 
+   calibrate(m_end_pos, o_end_pos);
+}
+
+void loop()
+{
+   Serial.println("standby");
+   uint32_t accel = 0;
+
+   setup_standby(accel);
+
+   if (emergency_but.value()) {
+      calibrate(m_end_pos, o_end_pos);
+   }
+   else {
+      uint32_t target_pos = 0;
+      timestamp_t pos_read = 0;
+   
+      stepper.target_speed(MAX_SPEED);
+      stepper.acceleration(accel);
+
+      digitalWrite(Y_LED, 0);
+      digitalWrite(G_LED, 1);
+   
+      delay_unitl(stepper.on());
+      
+      Serial.println("running");
+      
+      do {
+         uint32_t timestamp = stepper.step();
+         
+         if (now_us() - pos_read > 10000) {
+            target_pos = map(analogRead(M_POT), 0, 1023, 0, 1500);
+            stepper.target_pos(target_pos);
+            pos_read = now_us();
+         }
+      
+         delay_unitl(timestamp);
+         
+      } while (not emergency_but.value() and digitalRead(M_END) and digitalRead(O_END));
+
+      delay_unitl(stepper.off());
+   }
 }
