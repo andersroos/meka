@@ -16,7 +16,8 @@ BAUD_RATE = 9600
 #BOARD = ArduinoUno
 BOARD = Teensy32
 
-MAIN = pendel-trial
+MAIN = pendel
+#MAIN = pendel-trial
 #MAIN = stepper-changing-speed-trial
 #MAIN = stepper-speed-trial
 #MAIN = pendel-speed-trial
@@ -32,7 +33,7 @@ default: build
 
 TEST_CXX = g++
 
-TEST_OBJS = test/run-tests.o test/stepper-test.o
+TEST_OBJS = test/run-tests.o
 
 TEST_CXXFLAGS  = -I.
 

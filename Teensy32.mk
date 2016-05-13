@@ -1,5 +1,5 @@
 # Arduino IDE (arduino.cc), Teensyduino (https://www.pjrc.com/teensy/td_download.html) and Teensy Loader Cli
-# (https://github.com/PaulStoffregen/teensy_loader_cil) are needed. Compile the lib in the Arduino IDE the
+# (https://github.com/PaulStoffregen/teensy_loader_cil) are needed. Compile the lib in the Arduino IDE then
 # copy to (libcore-teensy32.a).
 
 ARM_DIR = $(ARDUINO_IDE_DIR)/hardware/tools/arm/bin

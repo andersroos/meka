@@ -2,6 +2,14 @@
 // Speed test for stepper, set acceleration and speed.
 //
 
+// POT
+// 736 är ned
+// 230 är upp
+// ~470 är höger
+// > 900 är opålitligt
+// död zon mäter ca 860 (vilket är samma som snett neråt vänster, alltså bra grej)
+// < 50 är opålitligt
+
 #include "Arduino.h"
 #include "lib/base.hpp"
 #include "lib/util.hpp"
@@ -48,6 +56,7 @@ void setup_standby(uint32_t& accel)
          last_val = val;
          delay(50);
       }
+      Serial.println(analogRead(POT));
    }
 }
 
@@ -59,10 +68,10 @@ void calibrate(int32_t& m_end_pos, int32_t& o_end_pos)
    delay_unitl(stepper.off());
 
    // We need a fast acceleration to be able to stop when reaching end, but not crazy fast so we miss steps.
-   stepper.acceleration(MAX_ACCELERATION / 2);
+   stepper.acceleration(MAX_ACCELERATION * 0.7);
 
    // As fast as possible but we need to be able to stop before crashing.
-   stepper.target_speed(800);
+   stepper.target_speed(1200);
 
    pin_value_t blink = 0;
 
@@ -173,6 +182,8 @@ void setup()
    pinMode(M_POT, INPUT);
    pinMode(O_POT, INPUT);
 
+   pinMode(POT, INPUT);
+   
    digitalWrite(BUILTIN_LED, 1);
 
    delay_unitl(stepper.off());
@@ -208,15 +219,24 @@ void loop()
          uint32_t timestamp = stepper.step();
          
          if (now_us() - pos_read > 10000) {
-            target_pos = map(analogRead(M_POT), 0, 1023, 0, 1500);
+            target_pos = map(analogRead(M_POT), 0, 1023, m_end_pos + 10, o_end_pos - 10);
             stepper.target_pos(target_pos);
             pos_read = now_us();
          }
       
          delay_unitl(timestamp);
-         
-      } while (not emergency_but.value() and digitalRead(M_END) and digitalRead(O_END));
 
+         if (not digitalRead(M_END)) break;
+
+         if (not digitalRead(O_END)) break;
+         
+      } while (not emergency_but.value());
+
+      Serial.print("target pos ");
+      Serial.println(stepper.target_pos());
+      Serial.print("pos ");
+      Serial.println(stepper.pos());
+      
       delay_unitl(stepper.off());
    }
 }

@@ -14,7 +14,7 @@
 #define M_END 15
 #define O_END 14
 
-#define POT -
+#define POT A7
 
 #define DIR 4
 #define STP 5
