@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sys/time.h>
+#include <unistd.h>
 
 #include <vector>
 #include <iostream>
@@ -44,4 +45,8 @@ uint32_t now_us()
       start_us = now64;
    }
    return uint32_t(now64 - start_us);
+}
+
+void delayMicroseconds(uint32_t delay) {
+   usleep(delay);
 }

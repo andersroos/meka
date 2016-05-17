@@ -46,34 +46,40 @@ struct event_queue
    event_queue() : index(0), size(0)
    {}
    
-   // Run the event queue.
-   void run()
-   {
-      while (size) {
-         timestamp_t now = now_us();
-         if (now < events[index].when_us and events[index].when_us - now ) {
-         }
-         
-         auto cb = events[index];
-         --size;
-      }
-      show_error(error::EVENT_QUEUE_EMPTY);
-   }
-
    // Returns true if x is before y. Can only used reliably for values in the interval -5 mins to +65 mins from now.
    bool before(const timestamp_t& now, const timestamp_t& x, const timestamp_t& y) {
       constexpr uint32_t _5_MINS = 5 * 60 * 1000 * 1000;
       return uint32_t(x - now + _5_MINS) < uint32_t(y - now + _5_MINS);
    }
 
+   // Get next index.
    uint8_t next(uint8_t index) {
       return (index + 1) % EVENTS_SIZE;
    }
 
+   // Get prev index.
    uint8_t prev(uint8_t index) {
       return (index - 1) % EVENTS_SIZE;
    }
    
+   // Run the event queue.
+   void run()
+   {
+      while (size) {
+         timestamp_t now = now_us();
+         if (before(now, now, events[index].when_us)) {
+            delayMicroseconds(std::max(timestamp_t(1000000), events[index].when_us - now - 100));
+         }
+         else {
+            auto cb = events[index].callback;
+            --size;
+            index = next(index);
+            cb(*this);
+         }
+      }
+      show_error(error::EVENT_QUEUE_EMPTY);
+   }
+
    // Enqueue event into the event loop, if queue is full it will show error.
    void enqueue(callback_t callback, uint32_t when)
    {
@@ -97,7 +103,7 @@ struct event_queue
 
          while (index != front_index) {
 
-            if (events[peek].when_us - now <= events[index].when_us - now) {
+            if (before(now, events[peek].when_us, events[index].when_us)) {
                break;
             }
 
