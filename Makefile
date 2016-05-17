@@ -76,6 +76,17 @@ depend:
 .PRECIOUS: %.o %.elf
 # DO NOT DELETE
 
+test/run-tests.o: test/event-test.hpp test/mock.hpp lib/util.hpp
+test/run-tests.o: lib/event.hpp lib/error.hpp test/stepper-test.hpp
+test/run-tests.o: lib/stepper.hpp
 test/simulate.o: test/mock.hpp lib/stepper.hpp
-test/stepper-test.o: test/mock.hpp lib/stepper.hpp
-stepper-speed-trial.o: lib/base.hpp lib/stepper.hpp
+test/event-test.o: test/mock.hpp lib/util.hpp lib/event.hpp lib/error.hpp
+test/stepper-test.o: test/mock.hpp lib/util.hpp lib/stepper.hpp
+lib/event.o: lib/error.hpp
+pendel-speed-trial.o: pendel-pins.hpp
+pendel-trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp pendel-pins.hpp
+pendel.o: lib/base.hpp lib/util.hpp lib/stepper.hpp lib/event.hpp
+pendel.o: lib/error.hpp pendel-pins.hpp
+stepper-changing-speed-trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp
+stepper-changing-speed-trial.o: pendel-pins.hpp
+stepper-speed-trial.o: lib/base.hpp lib/stepper.hpp pendel-pins.hpp
