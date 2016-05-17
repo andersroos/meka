@@ -17,10 +17,9 @@ BAUD_RATE = 9600
 BOARD = Teensy32
 
 MAIN = pendel
-#MAIN = pendel-trial
-#MAIN = stepper-changing-speed-trial
-#MAIN = stepper-speed-trial
-#MAIN = pendel-speed-trial
+#MAIN = pendel_trial
+#MAIN = stepper_changing_speed_trial
+#MAIN = stepper_speed_trial
 #MAIN = stepper
 
 EXTRA_OBJS = # $(ARDUINO_DIR)/libraries/Servo/src/avr/Servo.o
@@ -33,7 +32,7 @@ default: build
 
 TEST_CXX = g++
 
-TEST_OBJS = test/run-tests.o
+TEST_OBJS = test/run_tests.o
 
 TEST_CXXFLAGS  = -I.
 
@@ -76,17 +75,16 @@ depend:
 .PRECIOUS: %.o %.elf
 # DO NOT DELETE
 
-test/run-tests.o: test/event-test.hpp test/mock.hpp lib/util.hpp
-test/run-tests.o: lib/event.hpp lib/error.hpp test/stepper-test.hpp
-test/run-tests.o: lib/stepper.hpp
+test/run_tests.o: test/event_queue_test.hpp test/mock.hpp lib/util.hpp
+test/run_tests.o: lib/event_queue.hpp lib/error.hpp test/stepper_test.hpp
+test/run_tests.o: lib/stepper.hpp
 test/simulate.o: test/mock.hpp lib/stepper.hpp
-test/event-test.o: test/mock.hpp lib/util.hpp lib/event.hpp lib/error.hpp
-test/stepper-test.o: test/mock.hpp lib/util.hpp lib/stepper.hpp
-lib/event.o: lib/error.hpp
-pendel-speed-trial.o: pendel-pins.hpp
-pendel-trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp pendel-pins.hpp
-pendel.o: lib/base.hpp lib/util.hpp lib/stepper.hpp lib/event.hpp
-pendel.o: lib/error.hpp pendel-pins.hpp
-stepper-changing-speed-trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp
-stepper-changing-speed-trial.o: pendel-pins.hpp
-stepper-speed-trial.o: lib/base.hpp lib/stepper.hpp pendel-pins.hpp
+test/event_queue_test.o: test/mock.hpp lib/util.hpp lib/event_queue.hpp
+test/event_queue_test.o: lib/error.hpp
+test/stepper_test.o: test/mock.hpp lib/util.hpp lib/stepper.hpp
+lib/event_queue.o: lib/error.hpp
+pendel.o: lib/base.hpp lib/util.hpp lib/stepper.hpp lib/event_queue.hpp
+pendel.o: lib/error.hpp pendel_pins.hpp
+pendel_trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp
+stepper_changing_speed_trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp
+stepper_speed_trial.o: lib/base.hpp lib/stepper.hpp

@@ -14,8 +14,8 @@
 #include "lib/base.hpp"
 #include "lib/util.hpp"
 #include "lib/stepper.hpp"
-#include "lib/event.hpp"
-#include "pendel-pins.hpp"
+#include "lib/event_queue.hpp"
+#include "pendel_pins.hpp"
 
 
 int state = 0;

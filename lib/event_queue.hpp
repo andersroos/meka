@@ -8,7 +8,7 @@
 
 // Size of event queue.
 #ifndef EVENTS_SIZE
-#define EVENTS_SIZE 10
+#define EVENTS_SIZE 16
 #endif
 
 using namespace std;

@@ -4,7 +4,7 @@
 
 #include "mock.hpp"
 #include "lib/util.hpp"
-#include "lib/event.hpp"
+#include "lib/event_queue.hpp"
 
 using namespace std;
 
