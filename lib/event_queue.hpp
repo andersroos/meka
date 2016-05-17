@@ -13,32 +13,24 @@
 
 using namespace std;
 
-struct event_queue;
-
-using callback_t = void (*)(event_queue& event_queue, const timestamp_t& when);
-using index_t = uint8_t;
-
-// One event in the event loop.
-struct event
-{
-
-   // Depending on what type timestamp_t is it may wrap (70 minutes on arduino uno and teensy32), add to that some lag
-   // in handling is also possible so deltas above 60 mins (3.6e9 us) is bad practice.
-   timestamp_t when;
-
-   // Callback that will be called at around when, at least the order is guaranteed. NULL if this instance is
-   // disabled.
-   callback_t callback;
-
-   void operator=(const event& other) {
-      when = other.when;
-      callback = other.callback;
-   }
-   
-};
-
 struct event_queue
 {
+   using callback_t = void (*)(event_queue& event_queue, const timestamp_t& when);
+   using index_t = uint8_t;
+
+   // One event in the event loop.
+   struct event
+   {
+      
+      timestamp_t when;
+
+      callback_t callback;
+      
+      void operator=(const event& other) {
+         when = other.when;
+         callback = other.callback;
+      }
+   };
 
    // This is a sorted circular buffer with the next event first.
    event events[EVENTS_SIZE];
@@ -93,8 +85,10 @@ struct event_queue
       show_error(error::EVENT_QUEUE_EMPTY);
    }
 
-   // Enqueue event into the event loop, if queue is full it will show error.
-   void enqueue(callback_t callback, uint32_t when)
+   // Enqueue event into the event loop, if queue is full it will show error. Depending on what type timestamp_t is it
+   // may wrap (70 minutes on arduino uno and teensy32), add to that some lag in handling is also possible so deltas
+   // above 60 mins (3.6e9 us) is bad practice.
+  void enqueue(callback_t callback, uint32_t when)
    {
       if (size == EVENTS_SIZE) {
          show_error(error::EVENT_QUEUE_FULL);
