@@ -19,10 +19,10 @@
 
 
 int state = 0;
-void blink(event_queue& eq)
+void blink(event_queue& eq, const timestamp_t& when)
 {
    digitalWrite(Y_LED, state++ & 1);
-   eq.enqueue(blink, now_us() + 1e6);
+   eq.enqueue(blink, when + 200 * 1000);
 }
 
 void setup()

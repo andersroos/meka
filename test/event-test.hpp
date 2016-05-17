@@ -33,7 +33,58 @@ BOOST_AUTO_TEST_CASE(test_before_operator)
    // No longer before because 71 minutes is too close to now.
    BOOST_CHECK(not eq.before(0, 0, 71 * MINUTE));            
 
-   // Before even 60 minutes in the future.
+   // Now is not before 4 minutes ago...
    BOOST_CHECK(not eq.before(0, 0, -4 * MINUTE));            
+
+   // ...but now is before 6 minutes ago.
+   BOOST_CHECK(eq.before(0, 0, -6 * MINUTE));
+
+   // 58 minutes is before 30 if now is 60.
+   BOOST_CHECK(eq.before(60 * MINUTE, 58 * MINUTE, 30 * MINUTE));   
+}
+
+uint32_t result = 0;
+
+void add_one_once(event_queue& eq, const timestamp_t& when) {
+   result++;
+};
+
+void add_until_10(event_queue& eq, const timestamp_t& when) {
+   result++;
+   if (result < 10) {
+      eq.enqueue(add_until_10, now_us() - MINUTE);
+   }
+};
+
+BOOST_AUTO_TEST_CASE(test_queuing_works)
+{
+   result = 0;
+   event_queue eq;
+   eq.enqueue(add_one_once, now_us());
+   eq.run();
+   BOOST_CHECK_EQUAL(1, result);            
+}
+
+BOOST_AUTO_TEST_CASE(test_queueing_until_max_size_works)
+{
+   result = 0;
+   event_queue eq;
+   for (uint32_t i = 0; i < EVENTS_SIZE; ++i) {
+      eq.enqueue(add_one_once, now_us());
+   }
+   eq.run();
+   BOOST_CHECK_EQUAL(EVENTS_SIZE, result);            
+}
+
+BOOST_AUTO_TEST_CASE(test_adding_while_at_max_size_works)
+{
+   result = 0;
+   event_queue eq;
+   for (uint32_t i = 0; i < EVENTS_SIZE - 1; ++i) {
+      eq.enqueue(add_one_once, now_us());
+   }
+   eq.enqueue(add_until_10, now_us() - MINUTE);
+   eq.run();
+   BOOST_CHECK_EQUAL(EVENTS_SIZE - 1 + 10, result);
 }
 
