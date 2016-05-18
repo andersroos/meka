@@ -24,37 +24,39 @@
 #define START_BUT     M_BUT
 #define EMERGENCY_BUT O_BUT
 
+event_queue eq;
+
 stepper stepper(DIR, STP, EN, M0, M1, M2, DIR_O, SMOOTH_DELAY);
 
 button start_but(START_BUT);
+//button_waiter start_but_wait(start_but);
 
 button emergency_but(EMERGENCY_BUT);
+
+led y_led(Y_LED, OFF);
+led g_led(G_LED, OFF);
+
+led_blinker g_led_blink(eq, y_led);
+led_blinker y_led_blink(eq, g_led);
+
+led builtin_led(BUILTIN_LED, OFF);
 
 int32_t m_end_pos;
 int32_t o_end_pos;
 
 // Run the stepper thowards its target position.
-void step(event_queue& eq, const timestamp_t& when)
-{
-   
-}
+// void step(event_queue& eq, const timestamp_t& when)
+// {
+//    
+// }
 
-int state = 0;
-void blink(event_queue& eq, const timestamp_t& when)
-{
-   digitalWrite(Y_LED, state++ & 1);
-   eq.enqueue(blink, when + 200 * 1000);
-}
-
-void setup()
+void init()
 {
    Serial.begin(9600);
-   
+
    pinMode(START_BUT, INPUT);
    pinMode(EMERGENCY_BUT, INPUT);
    
-   pinMode(Y_LED, OUTPUT);
-   pinMode(G_LED, OUTPUT);
    pinMode(BUILTIN_LED, OUTPUT);
    
    pinMode(M_END, INPUT);
@@ -64,22 +66,37 @@ void setup()
    pinMode(O_POT, INPUT);
 
    pinMode(POT, INPUT);
+
+   //delay_unitl(stepper.off());
    
-   digitalWrite(BUILTIN_LED, 1);
+   builtin_led.on();
+}   
 
-   delay_unitl(stepper.off());
+void start(event_queue& eq, const timestamp_t& when)
+{
+   y_led_blink.start(200 * MILLIS);
 
-   calibrate(m_end_pos, o_end_pos);
-
+   // eq.enqueue_now(wait_for_)
    
+   // while (not start_but.pressed());
+
+   loop();
+   y_led_blink.stop();
+   
+   //calibrate(m_end_pos, o_end_pos);
+
    stepper.target_speed(MAX_SPEED);
    stepper.acceleration(MAX_ACCELERATION);
 
-   
-   event_queue event_queue;
-   pinMode(Y_LED, OUTPUT);
-   event_queue.enqueue_now(blink);
-   event_queue.run();
+   eq.stop();
+}
+
+void setup()
+{
+   init();
+   eq.enqueue_now(start);
+   eq.run();
 }
 
 void loop() {}
+

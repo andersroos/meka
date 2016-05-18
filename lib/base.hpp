@@ -15,6 +15,8 @@ using pin_value_t = uint8_t;
 using delay_t     = uint32_t;
 using timestamp_t = uint32_t;
 
+constexpr pin_value_t OFF = 0;
+constexpr pin_value_t ON = 1;
 
 // Blink error message, the blink will be 1s off then 125ms on/off for each bit in argument. So for example
 // 0b11001100 will be two 250ms flashes, then 1250ms off.

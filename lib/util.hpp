@@ -1,7 +1,8 @@
 #pragma once
 
 constexpr uint32_t MAX_TIMESTAMP = 0xffffffff; // 4.23e9 us or 71.58 minutes
-constexpr uint32_t SECOND = 1000 * 1000;
+constexpr uint32_t MILLIS = 1000;
+constexpr uint32_t SECOND = 1000 * MILLIS;
 constexpr uint32_t MINUTE = 60 * SECOND;
 
 // Returns true if x is before y. Can only used reliably for values in the interval -5 mins to +65 mins from now.
@@ -21,7 +22,7 @@ void delay_unitl(const timestamp_t& timestamp)
    }
 }
 
-// Util for reading button.
+// Util for reading button (switch).
 struct button
 {
 
@@ -52,5 +53,37 @@ struct button
 private:
    pin_t   _pin;
    pin_value_t _lastval;
+};
+
+// Util for single led.
+struct led
+{
+   led(pin_t pin, pin_value_t val=0) : _pin(pin), _val(val)
+   {
+      pinMode(_pin, OUTPUT);
+      digitalWrite(_pin, _val);
+   }
+
+   void on()
+   {
+      _val = 1;
+      digitalWrite(_pin, _val);
+   }
+
+   void off()
+   {
+      _val = 0;
+      digitalWrite(_pin, _val);
+   }
+
+   void toggle()
+   {
+      _val = not _val;
+      digitalWrite(_pin, _val);
+   }
+   
+private:
+   pin_t       _pin;
+   pin_value_t _val;
 };
 

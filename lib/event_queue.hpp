@@ -4,6 +4,8 @@
 // Lib for cpp micro controller event loop and callbacks.
 //
 
+//#include <functional>
+
 #include "error.hpp"
 
 // Size of event queue.
@@ -15,20 +17,26 @@ using namespace std;
 
 struct event_queue
 {
-   using callback_t = void (*)(event_queue& event_queue, const timestamp_t& when);
+   struct callback_obj {
+      virtual void operator()(event_queue& event_queue, const timestamp_t& when) = 0;
+   };
+   using callback_fun_t = void (*)(event_queue& event_queue, const timestamp_t& when);
+   using callback_obj_t = callback_obj*;
    using index_t = uint8_t;
 
-   // One event in the event loop.
+   // One event in the event loop. We need to have both pointer to function and pointer to functor object in parallell
+   // since we don't want to use new thus we can't cretate functor objects for function pointers on the fly. It's a bit
+   // ugly but it works. (std::function also uses new in some cases.)
    struct event
    {
-      
-      timestamp_t when;
-
-      callback_t callback;
+      timestamp_t    when;
+      callback_fun_t fun;
+      callback_obj_t obj;
       
       void operator=(const event& other) {
+         fun = other.fun;
+         obj = other.obj;
          when = other.when;
-         callback = other.callback;
       }
    };
 
@@ -43,13 +51,7 @@ struct event_queue
 
    bool _run;
    
-   event_queue() : _index(0), _size(0), _run(true)
-   {
-      for (auto& e : _events) {
-         e.when = 0;
-         e.callback = NULL;
-      }
-   }
+   event_queue() : _index(0), _size(0), _run(true) {}
    
    // Get next index.
    index_t next(const index_t& i) {
@@ -72,11 +74,15 @@ struct event_queue
             delayMicroseconds(delay);
          }
          else {
-            auto cb = _events[_index].callback;
-            auto when = _events[_index].when;
+            auto event = _events[_index];
             --_size;
             _index = next(_index);
-            cb(*this, when);
+            if (event.obj) {
+               event.obj->operator()(*this, event.when);
+            }
+            else {
+               event.fun(*this, event.when);
+            }
          }
       }
 
@@ -90,15 +96,17 @@ struct event_queue
       _run = false;
    }
    
-   void enqueue_now(callback_t callback)
-   {
-      enqueue(callback, now_us());
-   }
-   
    // Enqueue event into the event loop, if queue is full it will show error. Depending on what type timestamp_t is it
    // may wrap (70 minutes on arduino uno and teensy32), add to that some lag in handling is also possible so deltas
    // above 60 mins (3.6e9 us) is bad practice.
-   void enqueue(callback_t callback, uint32_t when)
+   void enqueue(callback_fun_t callback, uint32_t when) { _enqueue(callback, nullptr, when); }
+   void enqueue(callback_obj_t callback, uint32_t when) { _enqueue(nullptr, callback, when); }
+   void enqueue_now(callback_fun_t callback) { enqueue(callback, now_us()); }
+   void enqueue_now(callback_obj_t callback) { enqueue(callback, now_us()); }
+
+private:
+
+   void _enqueue(callback_fun_t fun, callback_obj_t obj,  uint32_t when)
    {
       if (_size == EVENTS_SIZE) {
          show_error(error::EVENT_QUEUE_FULL);
@@ -110,9 +118,11 @@ struct event_queue
 
          auto front_index = _index;
          auto back_index = (_index + _size - 1) % EVENTS_SIZE;
-         
-         _events[back_index].callback = callback;
-         _events[back_index].when = when;
+
+         auto& e = _events[back_index];
+         e.fun = fun;
+         e.obj = obj;
+         e.when = when;
 
          timestamp_t now = now_us();
 
@@ -132,15 +142,87 @@ struct event_queue
          }
       }
    }
-
-   // void print()
-   // {
-   //    cerr << "_size \t" << uint32_t(_size) << endl;
-   //    cerr << "index \t" << uint32_t(index) << endl;
-   //    timestamp_t now = now_us();
-   //    for (uint32_t i = 0; i < EVENTS_SIZE; ++i) {
-   //       cerr << i << " \t" << _events[i].when - now << " \t" << uint64_t(_events[i].callback) << endl;
-   //    }
-   // }
-   
 };
+
+struct led_blinker : public event_queue::callback_obj
+{
+   led_blinker(event_queue& event_queue, led& led, const delay_t& interval=SECOND) :
+      _event_queue(event_queue), _led(led), _interval(interval), _run(false)
+   {}
+
+   void interval(const delay_t& interval) {
+      _interval = interval;
+   }
+
+   void start(const delay_t& interval) {
+      this->interval(interval);
+      start();
+   }
+
+   void start() {
+      _run = true;
+      _event_queue.enqueue_now(this);
+   }
+
+   void stop() {
+      _run = false;
+      _led.off();
+   }
+   
+   void operator()(event_queue& eq, const timestamp_t& when) override
+   {
+      if (_run) {
+         _led.toggle();
+         eq.enqueue(this, when + _interval);
+      }
+   }
+   
+private:
+   event_queue& _event_queue;
+   led& _led;
+   delay_t _interval;
+   bool _run;
+};
+
+// struct button_waiter : public event_queue::callback_obj
+// {
+//    button_waiter(event_queue& event_queue, button& button, const delay_t& interval=SECOND) :
+//       _event_queue(event_queue), _button(button), _interval(interval), _run(false)
+//    {}
+// 
+//    void interval(const delay_t& interval) {
+//       _interval = interval;
+//    }
+// 
+//    void wait_for_up() {
+//       _run = true;
+//       _event_queue.enqueue_now(this);
+//    }
+// 
+//    void wait_for_down() {
+//       _run = true;
+//       _event_queue.enqueue_now(this);
+//    }
+//    
+//    void stop() {
+//       _run = false;
+//       _led.off();
+//    }
+//    
+//    void operator()(event_queue& eq, const timestamp_t& when) override
+//    {
+//       if (_run) {
+//          _led.toggle();
+//          eq.enqueue(this, when + _interval);
+//       }
+//    }
+//    
+// private:
+//    event_queue& _event_queue;
+//    led& _led;
+//    delay_t _interval;
+//    bool _run;
+// };
+
+
+
