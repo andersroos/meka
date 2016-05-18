@@ -33,28 +33,24 @@ struct event_queue
    };
 
    // This is a sorted circular buffer with the next event first.
-   event events[EVENTS_SIZE];
+   event _events[EVENTS_SIZE];
 
    // Index of front of the queue.
-   index_t index;
+   index_t _index;
 
    // Current number of elements.
-   index_t size;
+   index_t _size;
 
-   event_queue() : index(0), size(0)
+   bool _run;
+   
+   event_queue() : _index(0), _size(0), _run(true)
    {
-      for (auto& e : events) {
+      for (auto& e : _events) {
          e.when = 0;
          e.callback = NULL;
       }
    }
    
-   // Returns true if x is before y. Can only used reliably for values in the interval -5 mins to +65 mins from now.
-   bool before(const timestamp_t& now, const timestamp_t& x, const timestamp_t& y) {
-      constexpr uint32_t _5_MINS = 5 * 60 * 1000 * 1000;
-      return uint32_t(x - now + _5_MINS) < uint32_t(y - now + _5_MINS);
-   }
-
    // Get next index.
    index_t next(const index_t& i) {
       return (i + 1) % EVENTS_SIZE;
@@ -68,55 +64,69 @@ struct event_queue
    // Run the event queue.
    void run()
    {
-      while (size) {
+      _run = true;
+      while (_size and _run) {
          timestamp_t now = now_us();
-         if (before(now, now, events[index].when)) {
-            auto delay = min(timestamp_t(1000000), events[index].when - now);
+         if (before(now, now, _events[_index].when)) {
+            auto delay = min(timestamp_t(1000000), _events[_index].when - now);
             delayMicroseconds(delay);
          }
          else {
-            auto cb = events[index].callback;
-            auto when = events[index].when;
-            --size;
-            index = next(index);
+            auto cb = _events[_index].callback;
+            auto when = _events[_index].when;
+            --_size;
+            _index = next(_index);
             cb(*this, when);
          }
       }
-      show_error(error::EVENT_QUEUE_EMPTY);
+
+      if (_run) {
+         show_error(error::EVENT_QUEUE_EMPTY);
+      }
    }
 
+   void stop()
+   {
+      _run = false;
+   }
+   
+   void enqueue_now(callback_t callback)
+   {
+      enqueue(callback, now_us());
+   }
+   
    // Enqueue event into the event loop, if queue is full it will show error. Depending on what type timestamp_t is it
    // may wrap (70 minutes on arduino uno and teensy32), add to that some lag in handling is also possible so deltas
    // above 60 mins (3.6e9 us) is bad practice.
-  void enqueue(callback_t callback, uint32_t when)
+   void enqueue(callback_t callback, uint32_t when)
    {
-      if (size == EVENTS_SIZE) {
+      if (_size == EVENTS_SIZE) {
          show_error(error::EVENT_QUEUE_FULL);
       }
       else {
          // First insert in and then let it bubble up.
 
-         size++;
+         _size++;
 
-         auto front_index = index;
-         auto back_index = (index + size - 1) % EVENTS_SIZE;
+         auto front_index = _index;
+         auto back_index = (_index + _size - 1) % EVENTS_SIZE;
          
-         events[back_index].callback = callback;
-         events[back_index].when = when;
+         _events[back_index].callback = callback;
+         _events[back_index].when = when;
 
          timestamp_t now = now_us();
 
          while (back_index != front_index) {
             auto back_peek = prev(back_index);
 
-            if (before(now, events[back_peek].when, events[back_index].when)) {
+            if (before(now, _events[back_peek].when, _events[back_index].when)) {
                break;
             }
             
             // Swap index and peek to let it bubble up.
-            event e = events[back_index];
-            events[back_index] = events[back_peek];
-            events[back_peek] = e;
+            event e = _events[back_index];
+            _events[back_index] = _events[back_peek];
+            _events[back_peek] = e;
 
             back_index = back_peek;
          }
@@ -125,11 +135,11 @@ struct event_queue
 
    // void print()
    // {
-   //    cerr << "size \t" << uint32_t(size) << endl;
+   //    cerr << "_size \t" << uint32_t(_size) << endl;
    //    cerr << "index \t" << uint32_t(index) << endl;
    //    timestamp_t now = now_us();
    //    for (uint32_t i = 0; i < EVENTS_SIZE; ++i) {
-   //       cerr << i << " \t" << events[i].when - now << " \t" << uint64_t(events[i].callback) << endl;
+   //       cerr << i << " \t" << _events[i].when - now << " \t" << uint64_t(_events[i].callback) << endl;
    //    }
    // }
    

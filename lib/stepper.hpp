@@ -82,7 +82,7 @@ struct stepper
 
    // Turn off power. If you do this when the motor is not stopped, it will lose track of its positon.
    //
-   // returns: timestamp when stepper motor will be turned on
+   // returns: timestamp when stepper motor will be turned off
    timestamp_t off();
 
    // Set acceleration (and deceleration), this requires stopped state.

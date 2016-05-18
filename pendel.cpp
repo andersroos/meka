@@ -17,6 +17,27 @@
 #include "lib/event_queue.hpp"
 #include "pendel_pins.hpp"
 
+#define SMOOTH_DELAY       200
+#define MAX_ACCELERATION 50000
+#define MAX_SPEED        12000
+
+#define START_BUT     M_BUT
+#define EMERGENCY_BUT O_BUT
+
+stepper stepper(DIR, STP, EN, M0, M1, M2, DIR_O, SMOOTH_DELAY);
+
+button start_but(START_BUT);
+
+button emergency_but(EMERGENCY_BUT);
+
+int32_t m_end_pos;
+int32_t o_end_pos;
+
+// Run the stepper thowards its target position.
+void step(event_queue& eq, const timestamp_t& when)
+{
+   
+}
 
 int state = 0;
 void blink(event_queue& eq, const timestamp_t& when)
@@ -27,14 +48,38 @@ void blink(event_queue& eq, const timestamp_t& when)
 
 void setup()
 {
+   Serial.begin(9600);
+   
+   pinMode(START_BUT, INPUT);
+   pinMode(EMERGENCY_BUT, INPUT);
+   
+   pinMode(Y_LED, OUTPUT);
+   pinMode(G_LED, OUTPUT);
+   pinMode(BUILTIN_LED, OUTPUT);
+   
+   pinMode(M_END, INPUT);
+   pinMode(O_END, INPUT);
+   
+   pinMode(M_POT, INPUT);
+   pinMode(O_POT, INPUT);
+
+   pinMode(POT, INPUT);
+   
+   digitalWrite(BUILTIN_LED, 1);
+
+   delay_unitl(stepper.off());
+
+   calibrate(m_end_pos, o_end_pos);
+
+   
+   stepper.target_speed(MAX_SPEED);
+   stepper.acceleration(MAX_ACCELERATION);
+
+   
    event_queue event_queue;
    pinMode(Y_LED, OUTPUT);
-   event_queue.enqueue(blink, now_us());
+   event_queue.enqueue_now(blink);
    event_queue.run();
 }
 
-void loop()
-{
-   delay(1000);
-   digitalWrite(Y_LED, state++ & 1);
-}
+void loop() {}
