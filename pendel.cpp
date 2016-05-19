@@ -47,8 +47,14 @@ int32_t m_end_pos;
 int32_t o_end_pos;
 
 void check_for_emergency_stop(event_queue& eq, const timestamp_t& when);
-void standby_for_calibrate(event_queue& eq, const timestamp_t& when);
-void calibrate_finished(event_queue& eq, const timestamp_t& when);
+void calibrate_standby(event_queue& eq, const timestamp_t& when);
+void calibrate_move_clear_of_m_end(event_queue& eq, const timestamp_t& when);
+void calibrate_find_m_end(event_queue& eq, const timestamp_t& when);
+void calibrate_find_o_end(event_queue& eq, const timestamp_t& when);
+void calibrate_calibrate(event_queue& eq, const timestamp_t& when);
+void calibrate_center(event_queue& eq, const timestamp_t& when);
+
+void finished(event_queue& eq, const timestamp_t& when);
 
 void setup()
 {
@@ -64,9 +70,112 @@ void setup()
    y_led_blink.start(200 * MILLIS);
 
    eq.enqueue_now(check_for_emergency_stop);
-   eq.enqueue_now(standby_for_calibrate);
+   eq.enqueue_now(calibrate_standby);
    eq.run();
 }   
+
+void calibrate_standby(event_queue& eq, const timestamp_t& when)
+{
+   if (not start_but.pressed()) {
+      eq.enqueue(calibrate_standby, when + 100 * MILLIS);
+      return;
+   }
+      
+   y_led_blink.stop();
+   g_led_blink.start(100 * MILLIS);
+
+   // We need a fast acceleration to be able to stop when reaching end, but not crazy fast so we miss steps.
+   stepper.acceleration(MAX_ACCELERATION * 0.7);
+      
+   // As fast as possible but we need to be able to stop before crashing.
+   stepper.target_speed(32); //1200);
+      
+   m_end_pos = 0;
+   o_end_pos = 0;
+   
+   delay_unitl(stepper.on());
+   stepper.target_pos(0);
+   stepper.calibrate_position();
+
+   if (not m_end_inv_switch.value()) {
+      stepper.target_rel_pos(APPROX_DISTANCE * 0.2);
+   }
+
+   eq.enqueue_now(calibrate_move_clear_of_m_end);
+}
+
+void calibrate_move_clear_of_m_end(event_queue& eq, const timestamp_t& when)
+{
+   if (not stepper.is_stopped()) {
+      eq.enqueue(calibrate_move_clear_of_m_end, stepper.step());
+      return;
+   }
+
+   stepper.target_rel_pos(-APPROX_DISTANCE * 1.5);
+   
+   eq.enqueue_now(calibrate_find_m_end);
+}
+
+void calibrate_find_m_end(event_queue& eq, const timestamp_t& when)
+{
+   if (m_end_inv_switch.value()) {
+      eq.enqueue(calibrate_find_m_end, stepper.step());
+      return;
+   }
+
+   m_end_pos = stepper.pos();
+   stepper.target_rel_pos(APPROX_DISTANCE * 1.5);
+   eq.enqueue_now(calibrate_find_o_end);
+}
+
+void calibrate_find_o_end(event_queue& eq, const timestamp_t& when)
+{
+   if (o_end_inv_switch.value()) {
+      eq.enqueue(calibrate_find_o_end, stepper.step());
+      return;
+   }
+   
+   o_end_pos = stepper.pos();
+   stepper.target_pos(o_end_pos);
+   eq.enqueue_now(calibrate_calibrate);
+}
+
+void calibrate_calibrate(event_queue& eq, const timestamp_t& when)
+{
+   if (not stepper.is_stopped()) {
+      eq.enqueue(calibrate_calibrate, stepper.step());
+      return;
+   }
+
+   o_end_pos = o_end_pos - m_end_pos;
+   m_end_pos = 0;
+   stepper.calibrate_position(o_end_pos);
+   stepper.target_pos(o_end_pos / 2);
+   eq.enqueue_now(calibrate_center);
+}
+
+void calibrate_center(event_queue& eq, const timestamp_t& when)
+{
+   if (not stepper.is_stopped()) {
+      eq.enqueue(calibrate_center, stepper.step());
+      return;
+   }
+   eq.enqueue_now(finished);
+}
+
+void finished(event_queue& eq, const timestamp_t& when)
+{
+   y_led_blink.stop();
+   g_led_blink.stop();
+   delay_unitl(stepper.off());
+}
+
+// void start(event_queue& eq, const timestamp_t& when)
+// {
+//    stepper.target_speed(MAX_SPEED);
+//    stepper.acceleration(MAX_ACCELERATION);
+//    eq.stop();
+// }
 
 void check_for_emergency_stop(event_queue& eq, const timestamp_t& when)
 {
@@ -81,128 +190,6 @@ void check_for_emergency_stop(event_queue& eq, const timestamp_t& when)
    }
    eq.enqueue(check_for_emergency_stop, when + 100 * MILLIS);
 }
-
-// After waiting on button press, move stepper to a place where none of the limiter switches are enabled. Then move to
-// the motor until the motor switch, reset the stepper, then move to the other side. Move motor to center pos and return
-// other pos.
-struct calibrate : event_queue::callback_obj
-{
-   enum state : uint8_t { INIT, MID, FIND_M_END, FIND_O_END, CALIBRATE, CENTER };
-      
-   int32_t& m_end_pos;
-   int32_t& o_end_pos;
-   state state;
-
-   calibrate(int32_t& m_end_pos, int32_t& o_end_pos) 
-      : m_end_pos(m_end_pos), o_end_pos(o_end_pos), state(INIT)
-   {}
-
-   void operator()(event_queue& eq, const timestamp_t& when) {
-         
-      timestamp_t next_action = 0;
-         
-      switch (state) {
-         case INIT: // Init everything for calibrating, called once.
-               
-            // We need a fast acceleration to be able to stop when reaching end, but not crazy fast so we miss steps.
-            stepper.acceleration(MAX_ACCELERATION * 0.7);
-
-            // As fast as possible but we need to be able to stop before crashing.
-            stepper.target_speed(1200);
-
-            m_end_pos = 0;
-            o_end_pos = 0;
-   
-            delay_unitl(stepper.on());
-            stepper.target_pos(0);
-            stepper.calibrate_position();
-               
-            state = MID;
-            if (not m_end_inv_switch.value()) {
-               stepper.target_rel_pos(APPROX_DISTANCE * 0.2);
-            }
-            next_action = now_us();
-            break;
-
-         case MID: // Move stepper so m_end is no longer touched if needed.
-
-            next_action = stepper.step();
-
-            if (stepper.is_stopped()) {
-               next_action = now_us();
-               state = FIND_M_END;
-               stepper.target_rel_pos(-APPROX_DISTANCE * 1.5);
-            }
-            break;
-               
-         case FIND_M_END: // Move until at m_end, then change direction.
-            if (not m_end_inv_switch.value()) {
-               m_end_pos = stepper.pos();
-               state = FIND_O_END;
-               stepper.target_rel_pos(APPROX_DISTANCE * 1.5);
-            }
-            next_action = stepper.step();
-            break;
-
-         case FIND_O_END: // Move until at o_end, then 
-            if (not o_end_inv_switch.value()) {
-               o_end_pos = stepper.pos();
-               state = CALIBRATE;
-               stepper.target_pos(o_end_pos);
-            }
-            next_action = stepper.step();
-            break;
-
-         case CALIBRATE: // Calibrate the position.
-            if (stepper.is_stopped()) {
-               o_end_pos = o_end_pos - m_end_pos;
-               m_end_pos = 0;
-               stepper.calibrate_position(o_end_pos);
-               stepper.target_pos(o_end_pos / 2);
-               state = CENTER;
-            }
-            next_action = stepper.step();
-            break;
-
-         case CENTER: // Move it to the center.
-            if (stepper.is_stopped()) {
-               eq.enqueue_now(calibrate_finished);
-               return;
-            }
-            next_action = stepper.step();
-            break;
-      }
-      eq.enqueue(this, next_action);
-   }
-};
-calibrate calibrate_obj(m_end_pos, o_end_pos);
-
-void standby_for_calibrate(event_queue& eq, const timestamp_t& when)
-{
-   if (start_but.pressed()) {
-      y_led_blink.stop();
-      g_led.on();
-      eq.enqueue_now(&calibrate_obj);
-      return;
-   }
-
-   eq.enqueue(standby_for_calibrate, when + 100 * MILLIS);
-}
-
-void calibrate_finished(event_queue& eq, const timestamp_t& when)
-{
-   g_led.off();
-   y_led_blink.start();
-   delay_unitl(stepper.off());
-}
-
-void start(event_queue& eq, const timestamp_t& when)
-{
-   stepper.target_speed(MAX_SPEED);
-   stepper.acceleration(MAX_ACCELERATION);
-   eq.stop();
-}
-
 
 void loop() {}
 
