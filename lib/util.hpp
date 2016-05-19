@@ -27,7 +27,7 @@ struct button
 {
 
    // Init with pin.
-   button(pin_t pin) : _pin(pin), _lastval(0)
+   button(pin_t pin, bool inverted=false) : _pin(pin), _inverted(inverted), _lastval(0)
    {
       pinMode(pin, INPUT);
    }
@@ -35,13 +35,14 @@ struct button
    // Read button value and return it.
    bool value()
    {
-      return digitalRead(_pin);
+      pin_value_t val = digitalRead(_pin);
+      return _inverted ? not val : val;
    }
    
    // Read button value and return true when a release is detected (low flank).
    bool pressed()
    {
-      pin_value_t val = digitalRead(_pin);
+      pin_value_t val = value();
       if (val < _lastval) {
          _lastval = 0;
          return true;
@@ -52,6 +53,7 @@ struct button
 
 private:
    pin_t   _pin;
+   pin_value_t _inverted;
    pin_value_t _lastval;
 };
 

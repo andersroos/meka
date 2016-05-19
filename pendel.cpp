@@ -32,8 +32,8 @@ stepper stepper(DIR, STP, EN, M0, M1, M2, DIR_O, SMOOTH_DELAY);
 button start_but(START_BUT);
 button emergency_but(EMERGENCY_BUT);
 
-button m_end_inv_switch(M_END);
-button o_end_inv_switch(O_END);
+button m_end_switch(M_END, true);
+button o_end_switch(O_END, true);
 
 led y_led(Y_LED, OFF);
 led g_led(G_LED, OFF);
@@ -88,7 +88,7 @@ void calibrate_standby(event_queue& eq, const timestamp_t& when)
    stepper.acceleration(MAX_ACCELERATION * 0.7);
       
    // As fast as possible but we need to be able to stop before crashing.
-   stepper.target_speed(32); //1200);
+   stepper.target_speed(1200);
       
    m_end_pos = 0;
    o_end_pos = 0;
@@ -97,7 +97,7 @@ void calibrate_standby(event_queue& eq, const timestamp_t& when)
    stepper.target_pos(0);
    stepper.calibrate_position();
 
-   if (not m_end_inv_switch.value()) {
+   if (m_end_switch.value()) {
       stepper.target_rel_pos(APPROX_DISTANCE * 0.2);
    }
 
@@ -118,7 +118,7 @@ void calibrate_move_clear_of_m_end(event_queue& eq, const timestamp_t& when)
 
 void calibrate_find_m_end(event_queue& eq, const timestamp_t& when)
 {
-   if (m_end_inv_switch.value()) {
+   if (not m_end_switch.value()) {
       eq.enqueue(calibrate_find_m_end, stepper.step());
       return;
    }
@@ -130,7 +130,7 @@ void calibrate_find_m_end(event_queue& eq, const timestamp_t& when)
 
 void calibrate_find_o_end(event_queue& eq, const timestamp_t& when)
 {
-   if (o_end_inv_switch.value()) {
+   if (not o_end_switch.value()) {
       eq.enqueue(calibrate_find_o_end, stepper.step());
       return;
    }
