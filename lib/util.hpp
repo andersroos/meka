@@ -16,7 +16,7 @@ void delay_unitl(const timestamp_t& timestamp)
 {
    while (true) {
       timestamp_t now = now_us();
-      if (before(now, now, timestamp - 1)) {
+      if (before(now, timestamp - 1, now)) {
          break;
       }
    }

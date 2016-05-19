@@ -105,12 +105,16 @@ struct stepper
    //
    // speed: the requested speed in full steps/second
    void target_speed(float speed);
-   
+
+   // Return if the stepper is stopped at the target or if it is turned off.
+   bool is_stopped();
+
    // Step toward target position.
    //
    // returns: timestamp when step is finished and you should call step again to take next step, be as accurate as
    //          possible, returns 0 if arrived at target and speed is 0
    timestamp_t step();
+   // TODO This is bad, time can be valid and 0 (sure a hack could be to make sure it never is).
 
    // Get raw position, note that this is shifted when micro stepping.
    //
@@ -138,8 +142,6 @@ struct stepper
    inline uint32_t target_pos() { return _target_pos >> _micro; }
 
 private:
-
-   bool is_stopped();
 
    void shift_down();
 
@@ -301,7 +303,7 @@ stepper::calibrate_position(int32_t pos)
    }
 
    shift_down();
-   _pos = pos;
+   _pos = pos << _micro;
    shift_up();
 }
 
