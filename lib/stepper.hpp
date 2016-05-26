@@ -95,6 +95,11 @@ struct stepper
    // pos: target position in absolute steps
    void target_pos(int32_t pos);
 
+   // Get current target position.
+   //
+   // returns: current target position
+   inline uint32_t target_pos() { return _target_pos >> _micro; }
+
    // Set target position relative to current position, can be called at any time.
    //
    // pos: target position relative to current position
@@ -136,11 +141,6 @@ struct stepper
    // returns: delay in micro seconds
    inline uint32_t delay() { return _return_delay; }
    
-   // Get current target position.
-   //
-   // returns: current target position
-   inline uint32_t target_pos() { return _target_pos >> _micro; }
-
 private:
 
    void shift_down();
@@ -225,7 +225,7 @@ stepper::stepper(pin_t       dir_pin,
    pinMode(micro2_pin, OUTPUT);
    
    digitalWrite(dir_pin, forward_value);
-   digitalWrite(enable_pin, !STEPPER_ENABLE);
+   digitalWrite(enable_pin, not STEPPER_ENABLE);
    acceleration(DEFAULT_ACCEL);
    target_speed(DEFAULT_TARGET_SPEED);
 }
@@ -298,7 +298,8 @@ stepper::micro_set()
 void
 stepper::calibrate_position(int32_t pos)
 {
-   if (!is_stopped()) {
+   // TODO Add error state where it is permanently off, this is dangerous.
+   if (not is_stopped()) {
       return;
    }
 
@@ -324,7 +325,7 @@ timestamp_t
 stepper::off()
 {
    uint32_t now = now_us();
-   digitalWrite(_enable_pin, !STEPPER_ENABLE);
+   digitalWrite(_enable_pin, not STEPPER_ENABLE);
    _state = OFF;
    return now + ENABLE_US + 1;
 }
@@ -332,7 +333,7 @@ stepper::off()
 void
 stepper::acceleration(float accel)
 {
-   if (!is_stopped()) {
+   if (not is_stopped()) {
       return;
    }
 
@@ -352,7 +353,9 @@ inline void
 stepper::target_pos(int32_t pos)
 {
    _target_pos = pos << _micro;
-   _state = ACCEL;
+   if (_state != OFF) {
+      _state = ACCEL;
+   }
 }
 
 inline void
@@ -368,7 +371,7 @@ stepper::target_speed(float speed)
    
    _target_delay = delay_t(1e6 / speed);
 
-   if (!is_stopped()) {
+   if (not is_stopped()) {
       // Make sure state changes based on target speed if running.
       if (_target_delay > _delay) {
          _state = DECEL;
@@ -428,7 +431,7 @@ stepper::step()
          _dir = -_dir;
          _state = ACCEL;
          if (_dir < 0) {
-            digitalWrite(_dir_pin, !_forward_value);
+            digitalWrite(_dir_pin, not _forward_value);
          }
          else {
             digitalWrite(_dir_pin, _forward_value);

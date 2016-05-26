@@ -51,7 +51,15 @@ struct event_queue
 
    bool _run;
    
-   event_queue() : _index(0), _size(0), _run(true) {}
+   event_queue() {
+      reset();
+   }
+
+   void reset() {
+      _index = 0;
+      _size = 0;
+      _run = true;
+   }
    
    // Get next index.
    index_t next(const index_t& i) {

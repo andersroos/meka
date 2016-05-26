@@ -22,24 +22,29 @@
 #define MAX_SPEED        12000
 #define APPROX_DISTANCE  1500
 
-#define START_BUT     M_BUT
-#define EMERGENCY_BUT O_BUT
+#define START_BUT     G_BUT
+#define PAUS_BUT      Y_BUT
+#define EMERGENCY_BUT R_BUT
 
 event_queue eq;
 
 stepper stepper(DIR, STP, EN, M0, M1, M2, DIR_O, SMOOTH_DELAY);
 
 button start_but(START_BUT);
+button paus_but(PAUS_BUT);
 button emergency_but(EMERGENCY_BUT);
 
 button m_end_switch(M_END, true);
 button o_end_switch(O_END, true);
 
+// Blinking led means active operation (running, pausing, emergency stopping), lit led means possible/expected input.
 led y_led(Y_LED, OFF);
 led g_led(G_LED, OFF);
+led r_led(R_LED, OFF);
 
 led_blinker y_led_blink(eq, y_led);
 led_blinker g_led_blink(eq, g_led);
+led_blinker r_led_blink(eq, r_led);
 
 led builtin_led(BUILTIN_LED, OFF);
 
@@ -59,20 +64,29 @@ void finished(event_queue& eq, const timestamp_t& when);
 void setup()
 {
    Serial.begin(9600);
-
-   pinMode(M_POT, INPUT);
-   pinMode(O_POT, INPUT);
-
    pinMode(POT, INPUT);
+}   
 
-   delay_unitl(stepper.off());
+void loop()
+{
+   if (emergency_but.value()) {
+      delay(100);
+      return;
+   }
    
-   y_led_blink.start(200 * MILLIS);
+   eq.reset();
+   
+   delay_unitl(stepper.off());
+
+   g_led.on();
+   y_led.off();
+   r_led.on();
+   builtin_led.off();
 
    eq.enqueue_now(check_for_emergency_stop);
    eq.enqueue_now(calibrate_standby);
    eq.run();
-}   
+}
 
 void calibrate_standby(event_queue& eq, const timestamp_t& when)
 {
@@ -80,8 +94,7 @@ void calibrate_standby(event_queue& eq, const timestamp_t& when)
       eq.enqueue(calibrate_standby, when + 100 * MILLIS);
       return;
    }
-      
-   y_led_blink.stop();
+
    g_led_blink.start(100 * MILLIS);
 
    // We need a fast acceleration to be able to stop when reaching end, but not crazy fast so we miss steps.
@@ -93,9 +106,10 @@ void calibrate_standby(event_queue& eq, const timestamp_t& when)
    m_end_pos = 0;
    o_end_pos = 0;
    
-   delay_unitl(stepper.on());
    stepper.target_pos(0);
-   stepper.calibrate_position();
+   stepper.calibrate_position(0);
+ 
+   delay_unitl(stepper.on());
 
    if (m_end_switch.value()) {
       stepper.target_rel_pos(APPROX_DISTANCE * 0.2);
@@ -118,7 +132,7 @@ void calibrate_move_clear_of_m_end(event_queue& eq, const timestamp_t& when)
 
 void calibrate_find_m_end(event_queue& eq, const timestamp_t& when)
 {
-   if (not m_end_switch.value()) {
+   if (not m_end_switch.value() and not stepper.is_stopped()) {
       eq.enqueue(calibrate_find_m_end, stepper.step());
       return;
    }
@@ -130,7 +144,7 @@ void calibrate_find_m_end(event_queue& eq, const timestamp_t& when)
 
 void calibrate_find_o_end(event_queue& eq, const timestamp_t& when)
 {
-   if (not o_end_switch.value()) {
+   if (not o_end_switch.value() and not stepper.is_stopped()) {
       eq.enqueue(calibrate_find_o_end, stepper.step());
       return;
    }
@@ -165,8 +179,8 @@ void calibrate_center(event_queue& eq, const timestamp_t& when)
 
 void finished(event_queue& eq, const timestamp_t& when)
 {
-   y_led_blink.stop();
    g_led_blink.stop();
+   g_led.on();
    delay_unitl(stepper.off());
 }
 
@@ -183,13 +197,8 @@ void check_for_emergency_stop(event_queue& eq, const timestamp_t& when)
       builtin_led.on();   
       eq.stop();
       delay_unitl(stepper.off());
-      stepper.off();
-      y_led.off();
-      g_led.off();
       return;
    }
    eq.enqueue(check_for_emergency_stop, when + 100 * MILLIS);
 }
-
-void loop() {}
 

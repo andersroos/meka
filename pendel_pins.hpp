@@ -1,15 +1,14 @@
 #pragma once
 
-#define Y_LED 17
-#define G_LED 16
-
 #define BUILTIN_LED 13
 
-#define M_POT A9
-#define O_POT A8
+#define G_BUT 2
+#define Y_BUT 3
+#define R_BUT 18
 
-#define M_BUT 2
-#define O_BUT 3
+#define G_LED 10 
+#define Y_LED 11
+#define R_LED 12
 
 #define M_END 15
 #define O_END 14
