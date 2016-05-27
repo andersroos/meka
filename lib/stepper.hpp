@@ -80,6 +80,9 @@ struct stepper
    // returns: timestamp when stepper motor will be turned on
    timestamp_t on();
 
+   // True if stepepr is turned on.
+   bool is_on() { return _state != OFF; }
+   
    // Turn off power. If you do this when the motor is not stopped, it will lose track of its positon.
    //
    // returns: timestamp when stepper motor will be turned off

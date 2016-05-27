@@ -26,6 +26,10 @@
 #define PAUS_BUT      Y_BUT
 #define EMERGENCY_BUT R_BUT
 
+constexpr uint32_t SLOW_BLINK_DELAY = 200 * MILLIS;
+constexpr uint32_t FAST_BLINK_DELAY = 100 * MILLIS;
+constexpr uint32_t BUTTON_READ_DELAY = 100 * MILLIS;
+
 event_queue eq;
 
 stepper stepper(DIR, STP, EN, M0, M1, M2, DIR_O, SMOOTH_DELAY);
@@ -51,7 +55,6 @@ led builtin_led(BUILTIN_LED, OFF);
 int32_t m_end_pos;
 int32_t o_end_pos;
 
-void check_for_emergency_stop(event_queue& eq, const timestamp_t& when);
 void calibrate_standby(event_queue& eq, const timestamp_t& when);
 void calibrate_move_clear_of_m_end(event_queue& eq, const timestamp_t& when);
 void calibrate_find_m_end(event_queue& eq, const timestamp_t& when);
@@ -59,7 +62,15 @@ void calibrate_find_o_end(event_queue& eq, const timestamp_t& when);
 void calibrate_calibrate(event_queue& eq, const timestamp_t& when);
 void calibrate_center(event_queue& eq, const timestamp_t& when);
 
-void finished(event_queue& eq, const timestamp_t& when);
+void run_prepare(event_queue& eq, const timestamp_t& when);
+void run_standby(event_queue& eq, const timestamp_t& when);
+void run_step(event_queue& eq, const timestamp_t& when);
+void run(event_queue& eq, const timestamp_t& when);
+
+void fin_wait(event_queue& eq, const timestamp_t& when);
+
+void check_for_emergency_stop(event_queue& eq, const timestamp_t& when);
+void emergency_stop();
 
 void setup()
 {
@@ -70,7 +81,7 @@ void setup()
 void loop()
 {
    if (emergency_but.value()) {
-      delay(100);
+      delayMicroseconds(BUTTON_READ_DELAY);
       return;
    }
    
@@ -91,11 +102,11 @@ void loop()
 void calibrate_standby(event_queue& eq, const timestamp_t& when)
 {
    if (not start_but.pressed()) {
-      eq.enqueue(calibrate_standby, when + 100 * MILLIS);
+      eq.enqueue(calibrate_standby, when + BUTTON_READ_DELAY);
       return;
    }
 
-   g_led_blink.start(100 * MILLIS);
+   g_led_blink.start(SLOW_BLINK_DELAY);
 
    // We need a fast acceleration to be able to stop when reaching end, but not crazy fast so we miss steps.
    stepper.acceleration(MAX_ACCELERATION * 0.7);
@@ -174,31 +185,138 @@ void calibrate_center(event_queue& eq, const timestamp_t& when)
       eq.enqueue(calibrate_center, stepper.step());
       return;
    }
-   eq.enqueue_now(finished);
+   eq.enqueue_now(run_prepare);
 }
 
-void finished(event_queue& eq, const timestamp_t& when)
+void run_prepare(event_queue& eq, const timestamp_t& when)
 {
    g_led_blink.stop();
    g_led.on();
    delay_unitl(stepper.off());
+
+   stepper.target_speed(MAX_SPEED);
+   stepper.acceleration(MAX_ACCELERATION);
+   eq.enqueue_now(run_standby);
 }
 
-// void start(event_queue& eq, const timestamp_t& when)
-// {
-//    stepper.target_speed(MAX_SPEED);
-//    stepper.acceleration(MAX_ACCELERATION);
-//    eq.stop();
-// }
+void run_standby(event_queue& eq, const timestamp_t& when)
+{
+   if (not start_but.pressed()) {
+      eq.enqueue(run_standby, when + BUTTON_READ_DELAY);
+      return;
+   }
+   
+   g_led_blink.start(FAST_BLINK_DELAY);
+   y_led.on();
+   delay_unitl(stepper.on());
+   eq.enqueue_now(run);
+   eq.enqueue_now(run_step);
+}
+
+void run_step(event_queue& eq, const timestamp_t& when)
+{
+   if (not stepper.is_on()) {
+      return;
+   }
+
+   if (stepper.is_stopped()) {
+      eq.enqueue(run_step, when + 20 * MILLIS);
+      return;
+   }
+
+   eq.enqueue(run_step, stepper.step());
+}
+
+enum state:uint8_t {
+   SWING,    // We can't balance it, get it to a balancable position.
+   BALANCE,  // It should be balanceable from here.
+   CENTERED  // Focus on centering it.
+};
+
+// ~767 är ned
+// ~255 är upp
+// ~480 är höger
+// > 900 är opålitligt
+// död zon mäter ca 860 eller lite vad som helst (vilket är samma som snett neråt vänster, alltså bra grej)
+// < 50 är opålitligt
+
+constexpr uint32_t UP = 250;
+constexpr uint32_t DOWN = UP + 512;
+constexpr uint32_t BALANCE_LO = UP - 128;
+constexpr uint32_t BALANCE_HI = UP + 128;
+constexpr uint32_t SWING_LO = DOWN - 128;
+constexpr uint32_t SWING_HI = DOWN + 128;
+constexpr uint32_t BAD_LO = 50;
+constexpr uint32_t BAD_HI = 860;
+
+int32_t angular_speed = 0; // Measured in steps/tick, 1024 steps total, tick is how often run is run.
+uint32_t last_ang = DOWN;   // Position last tick (down).
+uint32_t curr_ang = DOWN;     // Current position.
+
+void run(event_queue& eq, const timestamp_t& when) {
+
+   if (m_end_switch.value() or o_end_switch.value()) {
+      emergency_stop();
+   }
+
+   last_ang = curr_ang;
+   curr_ang = analogRead(POT);
+   angular_speed = last_ang - curr_ang;
+   int32_t pos = stepper.pos();
+   int32_t new_pos = pos;
+   
+   if (not (last_ang < BAD_LO or BAD_HI < last_ang or curr_ang < BAD_LO or BAD_HI < curr_ang or 512 < angular_speed)) {
+      // Range and speed seems fine.
+
+      if (curr_ang < BALANCE_LO or BALANCE_HI < curr_ang) {
+         // We can't balance from here try to swing it.
+         
+         if (SWING_LO < curr_ang and curr_ang < SWING_HI) {
+
+            if (DOWN - 30 < curr_ang and curr_ang < DOWN + 30 and angular_speed == 0) {
+               // Not swinging at all, make a forcefull jerk to the side.
+               new_pos = 0;
+            }
+            else if (curr_ang < DOWN - 30) {
+               // Set to swing pos m, a bit of center.
+               new_pos = (o_end_pos - m_end_pos) / 2 - 150;
+            }
+            else if (DOWN + 30 < curr_ang) {
+               // Set to swing pos o, a bit of center.
+               new_pos = (o_end_pos - m_end_pos) / 2 + 150;
+            }
+         }
+      }
+   }
+
+   if (new_pos != pos) {
+      stepper.target_pos(min(max(new_pos, m_end_pos + 100), o_end_pos - 100));
+   };
+   
+   eq.enqueue(run, when + 10 * MILLIS);
+}
+ 
+void fin_wait(event_queue& eq, const timestamp_t& when) {
+   delay_unitl(stepper.off());
+   Serial.println(analogRead(POT));
+   eq.enqueue(fin_wait, when + SECOND);
+}
 
 void check_for_emergency_stop(event_queue& eq, const timestamp_t& when)
 {
    if (emergency_but.value()) {
-      builtin_led.on();   
-      eq.stop();
-      delay_unitl(stepper.off());
+      emergency_stop();
       return;
    }
-   eq.enqueue(check_for_emergency_stop, when + 100 * MILLIS);
+   eq.enqueue(check_for_emergency_stop, when + BUTTON_READ_DELAY);
 }
 
+void emergency_stop()
+{
+   delay_unitl(stepper.off());
+   builtin_led.on();   
+   eq.stop();
+   g_led.off();   
+   y_led.off();   
+   r_led.off();   
+}

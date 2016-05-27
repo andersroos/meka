@@ -168,6 +168,9 @@ struct led_blinker : public event_queue::callback_obj
    }
 
    void start() {
+      if (_run) {
+         return;
+      }
       _run = true;
       _event_queue.enqueue_now(this);
    }
