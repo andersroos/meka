@@ -75,16 +75,18 @@ depend:
 .PRECIOUS: %.o %.elf
 # DO NOT DELETE
 
-test/run_tests.o: test/event_queue_test.hpp test/mock.hpp lib/util.hpp
-test/run_tests.o: lib/event_queue.hpp lib/error.hpp test/stepper_test.hpp
-test/run_tests.o: lib/stepper.hpp
+test/run_tests.o: test/util_test.hpp test/mock.hpp lib/util.hpp
+test/run_tests.o: test/event_queue_test.hpp lib/event_queue.hpp lib/error.hpp
+test/run_tests.o: test/stepper_test.hpp lib/stepper.hpp
 test/simulate.o: test/mock.hpp lib/stepper.hpp
 test/event_queue_test.o: test/mock.hpp lib/util.hpp lib/event_queue.hpp
 test/event_queue_test.o: lib/error.hpp
 test/stepper_test.o: test/mock.hpp lib/util.hpp lib/stepper.hpp
+test/util_test.o: test/mock.hpp lib/util.hpp
 lib/event_queue.o: lib/error.hpp
+lib/serial.o: lib/event_queue.hpp lib/error.hpp
 pendel.o: lib/base.hpp lib/util.hpp lib/stepper.hpp lib/event_queue.hpp
-pendel.o: lib/error.hpp pendel_pins.hpp
-pendel_trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp
+pendel.o: lib/error.hpp lib/serial.hpp lib/event_queue.hpp pendel_pins.hpp
+pendel_trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp pendel_pins.hpp
 stepper_changing_speed_trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp
 stepper_speed_trial.o: lib/base.hpp lib/stepper.hpp

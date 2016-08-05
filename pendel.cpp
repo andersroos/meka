@@ -15,6 +15,7 @@
 #include "lib/util.hpp"
 #include "lib/stepper.hpp"
 #include "lib/event_queue.hpp"
+#include "lib/serial.hpp"
 #include "pendel_pins.hpp"
 
 #define SMOOTH_DELAY       200
@@ -28,7 +29,7 @@
 
 constexpr uint32_t SLOW_BLINK_DELAY = 200 * MILLIS;
 constexpr uint32_t FAST_BLINK_DELAY = 100 * MILLIS;
-constexpr uint32_t BUTTON_READ_DELAY = 100 * MILLIS;
+constexpr uint32_t BUTTON_READ_DELAY = 1 * MILLIS;
 
 event_queue eq;
 
@@ -72,9 +73,10 @@ void fin_wait(event_queue& eq, const timestamp_t& when);
 void check_for_emergency_stop(event_queue& eq, const timestamp_t& when);
 void emergency_stop();
 
+noblock_serial serial(&eq);
+
 void setup()
 {
-   Serial.begin(9600);
    pinMode(POT, INPUT);
 }   
 
@@ -84,6 +86,9 @@ void loop()
       delayMicroseconds(BUTTON_READ_DELAY);
       return;
    }
+
+   serial.pr("resetting\n");
+   serial.pr("standby for calibrate\n");
    
    eq.reset();
    
@@ -108,6 +113,8 @@ void calibrate_standby(event_queue& eq, const timestamp_t& when)
 
    g_led_blink.start(SLOW_BLINK_DELAY);
 
+   serial.p("calibrating\n");
+      
    // We need a fast acceleration to be able to stop when reaching end, but not crazy fast so we miss steps.
    stepper.acceleration(MAX_ACCELERATION * 0.7);
       
@@ -185,6 +192,7 @@ void calibrate_center(event_queue& eq, const timestamp_t& when)
       eq.enqueue(calibrate_center, stepper.step());
       return;
    }
+
    eq.enqueue_now(run_prepare);
 }
 
@@ -205,7 +213,9 @@ void run_standby(event_queue& eq, const timestamp_t& when)
       eq.enqueue(run_standby, when + BUTTON_READ_DELAY);
       return;
    }
-   
+
+   serial.p("standby for run\n");
+      
    g_led_blink.start(FAST_BLINK_DELAY);
    y_led.on();
    delay_unitl(stepper.on());
@@ -224,6 +234,8 @@ void run_step(event_queue& eq, const timestamp_t& when)
       return;
    }
 
+   serial.p("step ", stepper.pos(), "\n");
+   
    eq.enqueue(run_step, stepper.step());
 }
 
@@ -298,7 +310,7 @@ void run(event_queue& eq, const timestamp_t& when) {
  
 void fin_wait(event_queue& eq, const timestamp_t& when) {
    delay_unitl(stepper.off());
-   Serial.println(analogRead(POT));
+   serial.pr(analogRead(POT), '\n');
    eq.enqueue(fin_wait, when + SECOND);
 }
 
@@ -318,5 +330,7 @@ void emergency_stop()
    eq.stop();
    g_led.off();   
    y_led.off();   
-   r_led.off();   
+   r_led.off();
+   serial.clear();
+   serial.pr("\nemergency stop issued\n");
 }

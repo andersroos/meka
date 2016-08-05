@@ -60,6 +60,10 @@ struct event_queue
       _size = 0;
       _run = true;
    }
+
+   bool running() {
+      return _run;
+   }
    
    // Get next index.
    index_t next(const index_t& i) {
@@ -70,7 +74,7 @@ struct event_queue
    index_t prev(const index_t& i) {
       return (i + (EVENTS_SIZE - 1)) % EVENTS_SIZE;
    }
-   
+
    // Run the event queue.
    void run()
    {
@@ -112,6 +116,26 @@ struct event_queue
    void enqueue_now(callback_fun_t callback) { enqueue(callback, now_us()); }
    void enqueue_now(callback_obj_t callback) { enqueue(callback, now_us()); }
 
+   bool present(const callback_fun_t callback) const
+   {
+      for (uint32_t i = 0; i < _size; ++i) {
+         if (_events[(i + _index) % EVENTS_SIZE].fun == callback) {
+            return true;
+         }
+      }
+      return false;
+   }
+
+   bool present(const callback_obj_t callback) const
+   {
+      for (uint32_t i = 0; i < _size; ++i) {
+         if (_events[(i + _index) % EVENTS_SIZE].obj == callback) {
+            return true;
+         }
+      }
+      return false;
+   }
+   
 private:
 
    void _enqueue(callback_fun_t fun, callback_obj_t obj,  uint32_t when)
@@ -194,46 +218,4 @@ private:
    delay_t _interval;
    bool _run;
 };
-
-// struct button_waiter : public event_queue::callback_obj
-// {
-//    button_waiter(event_queue& event_queue, button& button, const delay_t& interval=SECOND) :
-//       _event_queue(event_queue), _button(button), _interval(interval), _run(false)
-//    {}
-// 
-//    void interval(const delay_t& interval) {
-//       _interval = interval;
-//    }
-// 
-//    void wait_for_up() {
-//       _run = true;
-//       _event_queue.enqueue_now(this);
-//    }
-// 
-//    void wait_for_down() {
-//       _run = true;
-//       _event_queue.enqueue_now(this);
-//    }
-//    
-//    void stop() {
-//       _run = false;
-//       _led.off();
-//    }
-//    
-//    void operator()(event_queue& eq, const timestamp_t& when) override
-//    {
-//       if (_run) {
-//          _led.toggle();
-//          eq.enqueue(this, when + _interval);
-//       }
-//    }
-//    
-// private:
-//    event_queue& _event_queue;
-//    led& _led;
-//    delay_t _interval;
-//    bool _run;
-// };
-
-
 
