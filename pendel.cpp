@@ -66,6 +66,8 @@ void calibrate_center(event_queue& eq, const timestamp_t& when);
 void run_prepare(event_queue& eq, const timestamp_t& when);
 void run_standby(event_queue& eq, const timestamp_t& when);
 void run_step(event_queue& eq, const timestamp_t& when);
+void run_pause(event_queue& eq, const timestamp_t& when);
+void run_start(event_queue& eq, const timestamp_t& when);
 void run(event_queue& eq, const timestamp_t& when);
 
 void fin_wait(event_queue& eq, const timestamp_t& when);
@@ -204,6 +206,9 @@ void run_prepare(event_queue& eq, const timestamp_t& when)
 
    stepper.target_speed(MAX_SPEED);
    stepper.acceleration(MAX_ACCELERATION);
+
+   serial.p("standby for run\n");
+   
    eq.enqueue_now(run_standby);
 }
 
@@ -214,29 +219,9 @@ void run_standby(event_queue& eq, const timestamp_t& when)
       return;
    }
 
-   serial.p("standby for run\n");
-      
-   g_led_blink.start(FAST_BLINK_DELAY);
-   y_led.on();
-   delay_unitl(stepper.on());
-   eq.enqueue_now(run);
-   eq.enqueue_now(run_step);
-}
+   serial.p("running\n");
 
-void run_step(event_queue& eq, const timestamp_t& when)
-{
-   if (not stepper.is_on()) {
-      return;
-   }
-
-   if (stepper.is_stopped()) {
-      eq.enqueue(run_step, when + 20 * MILLIS);
-      return;
-   }
-
-   serial.p("step ", stepper.pos(), "\n");
-   
-   eq.enqueue(run_step, stepper.step());
+   eq.enqueue_now(run_start);
 }
 
 enum state:uint8_t {
@@ -265,10 +250,55 @@ int32_t angular_speed = 0; // Measured in steps/tick, 1024 steps total, tick is 
 uint32_t last_ang = DOWN;   // Position last tick (down).
 uint32_t curr_ang = DOWN;     // Current position.
 
+void run_start(event_queue& eq, const timestamp_t& when)
+{
+   g_led_blink.start(FAST_BLINK_DELAY);
+   y_led_blink.stop();
+   y_led.on();
+
+   delay_unitl(stepper.on());
+   
+   if (not eq.present(run_step)) {
+      eq.enqueue_now(run_step);
+   }
+
+   eq.enqueue_now(run);
+}
+
+void run_pause(event_queue& eq, const timestamp_t& when)
+{
+   if (not stepper.is_stopped()) {
+      eq.enqueue(run_pause, when + BUTTON_READ_DELAY);
+      return;
+   }
+
+   if (stepper.is_on()) {
+      delay_unitl(stepper.off());
+   }
+   
+   if (not start_but.pressed()) {
+      eq.enqueue(run_pause, when + BUTTON_READ_DELAY);
+      return;
+   }
+   
+   serial.p("resuming\n");
+   
+   eq.enqueue_now(run_start);
+}
+
 void run(event_queue& eq, const timestamp_t& when) {
 
    if (m_end_switch.value() or o_end_switch.value()) {
       emergency_stop();
+   }
+
+   if (paus_but.pressed()) {
+      g_led_blink.stop();
+      g_led.on();
+      y_led_blink.start(FAST_BLINK_DELAY);
+      serial.p("pausing\n");
+      eq.enqueue_now(run_pause);
+      return;
    }
 
    last_ang = curr_ang;
@@ -307,7 +337,22 @@ void run(event_queue& eq, const timestamp_t& when) {
    
    eq.enqueue(run, when + 10 * MILLIS);
 }
- 
+
+// Run stepper in its own "thread".
+void run_step(event_queue& eq, const timestamp_t& when)
+{
+   if (not stepper.is_on()) {
+      return;
+   }
+
+   if (stepper.is_stopped()) {
+      eq.enqueue(run_step, when + 20 * MILLIS);
+      return;
+   }
+
+   eq.enqueue(run_step, stepper.step());
+}
+
 void fin_wait(event_queue& eq, const timestamp_t& when) {
    delay_unitl(stepper.off());
    serial.pr(analogRead(POT), '\n');
