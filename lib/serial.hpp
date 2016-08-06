@@ -4,6 +4,8 @@
 // Better interface for serial communication, uses Arduino Serial internally.
 //
 
+// TODO This is buggy, serial.p will hang if console is killed. this should not happen.
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -155,12 +157,17 @@ private:
          neg = true;
          m = -m;
       }
-      
-      while (m > 0 and r > buf) {
-         int div = m / 10;
-         int rest = m - div * 10;
-         *--r = '0' + rest;
-         m = div;
+
+      if (m == 0) {
+         *--r = '0';
+      }
+      else {
+         while (m > 0 and r > buf) {
+            int div = m / 10;
+            int rest = m - div * 10;
+            *--r = '0' + rest;
+            m = div;
+         }
       }
 
       if (neg) {
@@ -171,6 +178,11 @@ private:
    }
    
    const char* _p(char* buf, int m)
+   {
+      return _p(buf, long(m));
+   }
+
+   const char* _p(char* buf, unsigned long m)
    {
       return _p(buf, long(m));
    }

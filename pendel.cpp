@@ -102,7 +102,8 @@ void loop()
    builtin_led.off();
 
    eq.enqueue_now(check_for_emergency_stop);
-   eq.enqueue_now(calibrate_standby);
+   //eq.enqueue_now(calibrate_standby);
+   eq.enqueue_now(run_standby);
    eq.run();
 }
 
@@ -224,47 +225,6 @@ void run_standby(event_queue& eq, const timestamp_t& when)
    eq.enqueue_now(run_start);
 }
 
-enum state:uint8_t {
-   SWING,    // We can't balance it, get it to a balancable position.
-   BALANCE,  // It should be balanceable from here.
-   CENTERED  // Focus on centering it.
-};
-
-// ~767 är ned
-// ~255 är upp
-// ~480 är höger
-// > 900 är opålitligt
-// död zon mäter ca 860 eller lite vad som helst (vilket är samma som snett neråt vänster, alltså bra grej)
-// < 50 är opålitligt
-
-constexpr uint32_t UP = 250;
-constexpr uint32_t DOWN = UP + 512;
-constexpr uint32_t BALANCE_LO = UP - 128;
-constexpr uint32_t BALANCE_HI = UP + 128;
-constexpr uint32_t SWING_LO = DOWN - 128;
-constexpr uint32_t SWING_HI = DOWN + 128;
-constexpr uint32_t BAD_LO = 50;
-constexpr uint32_t BAD_HI = 860;
-
-int32_t angular_speed = 0; // Measured in steps/tick, 1024 steps total, tick is how often run is run.
-uint32_t last_ang = DOWN;   // Position last tick (down).
-uint32_t curr_ang = DOWN;     // Current position.
-
-void run_start(event_queue& eq, const timestamp_t& when)
-{
-   g_led_blink.start(FAST_BLINK_DELAY);
-   y_led_blink.stop();
-   y_led.on();
-
-   delay_unitl(stepper.on());
-   
-   if (not eq.present(run_step)) {
-      eq.enqueue_now(run_step);
-   }
-
-   eq.enqueue_now(run);
-}
-
 void run_pause(event_queue& eq, const timestamp_t& when)
 {
    if (not stepper.is_stopped()) {
@@ -286,6 +246,101 @@ void run_pause(event_queue& eq, const timestamp_t& when)
    eq.enqueue_now(run_start);
 }
 
+// enum state:uint8_t {
+//    SWING,    // We can't balance it, get it to a balancable position.
+//    BALANCE,  // It should be balanceable from here.
+//    CENTERED  // Focus on centering it.
+// };
+
+// ~767 är ned
+// ~255 är upp
+// ~480 är höger
+// > 900 är opålitligt
+// död zon mäter ca 860 eller lite vad som helst (vilket är samma som snett neråt vänster, alltså bra grej)
+// < 50 är opålitligt
+
+constexpr int32_t UP = 252;
+constexpr int32_t DOWN = UP + 250;
+constexpr int32_t BALANCE_LO = UP - 128;
+constexpr int32_t BALANCE_HI = UP + 128;
+constexpr int32_t SWING_LO = DOWN - 128;
+constexpr int32_t SWING_HI = DOWN + 128;
+constexpr int32_t BAD_LO = 50;
+constexpr int32_t BAD_HI = 890;
+constexpr timestamp_t TICK = MILLIS * 10;
+constexpr uint32_t STATE_SIZE = 8;
+
+// Helper class for handling state.
+struct run_state {
+
+// // UP and DOWN are pretty unreliable, so we will try to update them during the run.
+// int32_t dynamic_down = DOWN;
+// int32_t dynamic_up = UP;
+
+   uint8_t index;
+   
+   int32_t _ang_speed[STATE_SIZE]; // Angular speed measured in steps/tick, 1024 steps total.
+   int32_t _ang[STATE_SIZE];       // Position.
+   bool    _dead_ang[STATE_SIZE];  // Is the ang in the dead zone?
+   bool dead_zone;                 // Are we currently in the dead zone?
+   timestamp_t last_measure;       // Last time we did measure.
+
+   run_state() { reset(); }
+
+   inline int32_t& ang_speed(uint8_t i) { return _ang_speed[(index + i) % STATE_SIZE]; }
+   inline int32_t& ang(uint8_t i) { return _ang[(index + i) % STATE_SIZE]; }
+   inline bool& dead_ang(uint8_t i) { return _dead_ang[(index + i) % STATE_SIZE]; }
+   
+   void reset()
+   {
+      index = STATE_SIZE - 1;
+      for (uint32_t i = 0; i < STATE_SIZE; ++i) {
+         ang_speed(i) = 0;
+         ang(i) = 0;
+         dead_ang(i) = true;
+      }
+      dead_zone = true;
+      last_measure = 0;
+   }
+
+   void measure()
+   {
+      --index;
+      auto now = now_us();
+      ang(0) = analogRead(POT);
+      ang_speed(0) = ang(0) - ang(1);
+      dead_ang(0) = not (BAD_LO < ang(0) and ang(0) < BAD_HI);
+      dead_zone = dead_ang(0) and dead_ang(1) and dead_ang(2);
+               
+      if (last_measure) {
+         auto tick_duration = now - last_measure;
+         uint32_t diff = abs(int32_t(tick_duration) - int32_t(TICK));
+         if (MILLIS < diff * 2) {
+            serial.p("warning, tick was ", tick_duration, " us, diff ", diff, " us\n");
+         }      
+      }
+      last_measure = now;
+
+      serial.p(dead_zone, " ", ang(0), " ", ang_speed(0), "\n");
+   }
+   
+};
+
+run_state rs;
+
+void run_start(event_queue& eq, const timestamp_t& when)
+{
+   g_led_blink.start(FAST_BLINK_DELAY);
+   y_led_blink.stop();
+   y_led.on();
+   delay_unitl(stepper.on());
+   rs.reset();
+   if (not eq.present(run_step)) {
+      eq.enqueue_now(run_step);
+   }
+   eq.enqueue_now(run);
+}
+
 void run(event_queue& eq, const timestamp_t& when) {
 
    if (m_end_switch.value() or o_end_switch.value()) {
@@ -301,41 +356,43 @@ void run(event_queue& eq, const timestamp_t& when) {
       return;
    }
 
-   last_ang = curr_ang;
-   curr_ang = analogRead(POT);
-   angular_speed = last_ang - curr_ang;
-   int32_t pos = stepper.pos();
-   int32_t new_pos = pos;
+   rs.measure();
    
-   if (not (last_ang < BAD_LO or BAD_HI < last_ang or curr_ang < BAD_LO or BAD_HI < curr_ang or 512 < angular_speed)) {
-      // Range and speed seems fine.
-
-      if (curr_ang < BALANCE_LO or BALANCE_HI < curr_ang) {
-         // We can't balance from here try to swing it.
-         
-         if (SWING_LO < curr_ang and curr_ang < SWING_HI) {
-
-            if (DOWN - 30 < curr_ang and curr_ang < DOWN + 30 and angular_speed == 0) {
-               // Not swinging at all, make a forcefull jerk to the side.
-               new_pos = 0;
-            }
-            else if (curr_ang < DOWN - 30) {
-               // Set to swing pos m, a bit of center.
-               new_pos = (o_end_pos - m_end_pos) / 2 - 150;
-            }
-            else if (DOWN + 30 < curr_ang) {
-               // Set to swing pos o, a bit of center.
-               new_pos = (o_end_pos - m_end_pos) / 2 + 150;
-            }
-         }
-      }
-   }
-
-   if (new_pos != pos) {
-      stepper.target_pos(min(max(new_pos, m_end_pos + 100), o_end_pos - 100));
-   };
+   // last_ang = curr_ang;
+   // curr_ang = analogRead(POT);
+   // angular_speed = last_ang - curr_ang;
+   // int32_t pos = stepper.pos();
+   // int32_t new_pos = pos;
+   // 
+   // if (not (last_ang < BAD_LO or BAD_HI < last_ang or curr_ang < BAD_LO or BAD_HI < curr_ang or 512 < angular_speed)) {
+   //    // Range and speed seems fine.
+   // 
+   //    if (curr_ang < BALANCE_LO or BALANCE_HI < curr_ang) {
+   //       // We can't balance from here try to swing it.
+   //       
+   //       if (SWING_LO < curr_ang and curr_ang < SWING_HI) {
+   // 
+   //          if (DOWN - 30 < curr_ang and curr_ang < DOWN + 30 and angular_speed == 0) {
+   //             // Not swinging at all, make a forcefull jerk to the side.
+   //             new_pos = 0;
+   //          }
+   //          else if (curr_ang < DOWN - 30) {
+   //             // Set to swing pos m, a bit of center.
+   //             new_pos = (o_end_pos - m_end_pos) / 2 - 150;
+   //          }
+   //          else if (DOWN + 30 < curr_ang) {
+   //             // Set to swing pos o, a bit of center.
+   //             new_pos = (o_end_pos - m_end_pos) / 2 + 150;
+   //          }
+   //       }
+   //    }
+   // }
+   // 
+   // if (new_pos != pos) {
+   //    stepper.target_pos(min(max(new_pos, m_end_pos + 100), o_end_pos - 100));
+   // };
    
-   eq.enqueue(run, when + 10 * MILLIS);
+   eq.enqueue(run, when + TICK);
 }
 
 // Run stepper in its own "thread".
