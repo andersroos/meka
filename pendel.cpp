@@ -15,6 +15,7 @@
 #include "lib/util.hpp"
 #include "lib/stepper.hpp"
 #include "lib/event_queue.hpp"
+#include "lib/event_utils.hpp"
 #include "lib/serial.hpp"
 #include "pendel_pins.hpp"
 
@@ -250,7 +251,7 @@ void run_pause(event_queue& eq, const timestamp_t& when)
    eq.enqueue_now(run_start);
 }
 
-enum action:uint8_t {
+enum state_t:uint8_t {
    STILL,    // Waiting for it to be at rest before starting to swing.
    SWING_O,  // We can't balance it, swing it to a balancable position, expected swing is to the other side.
    SWING_M,  // We can't balance it, swing it to a balancable position, expected swing is to the motor side.
@@ -339,8 +340,7 @@ struct run_state {
    bool        dead_zone;              // Are we currently in the dead zone?
    timestamp_t last_measure;           // Last time we did measure.
    int32_t     delta;                  // Best known delta for true down and true up (this changes all the time).
-
-   action      state;                  // Current state of running.
+   state_t     state;                  // Current state of running.
    
    run_state() { reset(); }
 
@@ -473,12 +473,12 @@ void run(event_queue& eq, const timestamp_t& when) {
          rs.state = SWING_O;
       }
    }
-   else if (rs.state == SWING_O and stepper.is_stopped() and rs.ang_speed(0) < 0 and rs.ang(0) < rs.down(30)) {
+   else if (rs.state == SWING_O and rs.decelerating(8) and rs.ang_speed(0) < 4 and rs.ang(0) > rs.down(10)) {
       new_pos = mid_pos + 150;
       serial.p("swing add m => o, next swing m\n");
       rs.state = SWING_M;
    }
-   else if (rs.state == SWING_M and stepper.is_stopped() and 0 < rs.ang_speed(0) and rs.down(-30) < rs.ang(0)) {
+   else if (rs.state == SWING_M and rs.decelerating(8) and rs.ang_speed(0) > -4 and rs.ang(0) < rs.down(-10)) {
       new_pos = mid_pos - 150;
       serial.p("swing add m <= o, next swing o\n");
       rs.state = SWING_O;

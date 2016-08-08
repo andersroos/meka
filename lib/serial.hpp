@@ -4,8 +4,6 @@
 // Better interface for serial communication, uses Arduino Serial internally.
 //
 
-// TODO This is buggy, serial.p will hang if console is killed. this should not happen.
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -23,7 +21,7 @@ struct noblock_serial : event_queue::callback_obj
 {
 
    noblock_serial(event_queue* eq=nullptr, uint32_t baud_rate=9600) :
-      _event_queue(eq), _head(_buf), _tail(_buf), _size(0), _wait(1e6 / baud_rate - 1000)
+      _event_queue(eq), _head(_buf), _tail(_buf), _size(0), _wait(1e6 * 10 / baud_rate)
    {
       Serial.begin(baud_rate);
    }
