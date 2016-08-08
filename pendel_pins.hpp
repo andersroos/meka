@@ -13,7 +13,8 @@
 #define M_END 15
 #define O_END 14
 
-#define POT A7
+#define POT_0 A7
+#define POT_1 A6
 
 #define DIR 4
 #define STP 5
