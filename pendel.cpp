@@ -70,6 +70,7 @@ void run_standby(event_queue& eq, const timestamp_t& when);
 void run_step(event_queue& eq, const timestamp_t& when);
 void run_pause(event_queue& eq, const timestamp_t& when);
 void run_start(event_queue& eq, const timestamp_t& when);
+void run_wait_for_still(event_queue& eq, const timestamp_t& when);
 void run(event_queue& eq, const timestamp_t& when);
 
 void check_for_emergency_stop(event_queue& eq, const timestamp_t& when);
@@ -356,11 +357,32 @@ struct run_state {
    inline uint32_t& ang(uint8_t i) { return _ang[(index + i) % STATE_SIZE]; }
 
    // Given that pendulum is down, set delta_0 and delta_1.
-   void _calibrate_down()
+   void calibrate_down()
    {
       delta0 = (DOWN - a0) & ANG_MASK;
       delta1 = (DOWN - a1) & ANG_MASK;
-      serial.p("calibrated delta0 ", delta0, ", delta1 ", delta1, " a0 ", a0, " a1 ", a1, "\n");      
+      serial.p("calibrated down, delta0 ", delta0, ", delta1 ", delta1, " a0 ", a0, " a1 ", a1, "\n");      
+   }
+   
+   // Return true if appears to be still and down.
+   bool still()
+   {
+      if (not (DOWN - DEG_45 < a0 and a0 < DOWN + DEG_45)) {
+         // Calibration can only go so far.
+         return false;
+      }
+      
+      int32_t sum = 0;
+      bool still = true;
+      for (uint8_t i = 0; i < STATE_SIZE; ++i) {
+         sum += ang_speed(i);
+         still = still and -2 < ang_speed(i) and ang_speed(i) < 2;
+      }
+      if (still and -2 < sum and sum < 2) {
+         // We are still.
+         return true;
+      }
+      return false;
    }
    
    void reset()
@@ -440,27 +462,6 @@ struct run_state {
       return SWING_LO < ang(0) and ang(0) < SWING_HI and abs(ang_speed(0)) < 50;
    }
 
-   // Return true if appears to be still and down.
-   bool still()
-   {
-      if (not (DOWN - DEG_45 < a0 and a0 < DOWN + DEG_45)) {
-         // Calibration can only go so far.
-         return false;
-      }
-      
-      int32_t sum = 0;
-      bool still = true;
-      for (uint8_t i = 0; i < STATE_SIZE; ++i) {
-         sum += ang_speed(i);
-         still = still and -3 < ang_speed(i) and ang_speed(i) < 3;
-      }
-      if (still and -2 < sum and sum < 2) {
-         // We are still, let's calibrate delta.
-         _calibrate_down();
-         return true;
-      }
-      return false;
-   }
 
 };
 
@@ -477,7 +478,20 @@ void run_start(event_queue& eq, const timestamp_t& when)
    if (not eq.present(run_step)) {
       eq.enqueue_now(run_step);
    }
-   eq.enqueue_now(run);
+   eq.enqueue_now(run_wait_for_still);
+   serial.p("waiting for still\n");
+}
+
+void run_wait_for_still(event_queue& eq, const timestamp_t& when) {
+   rs.measure();
+   
+   if (not rs.still()) {
+      eq.enqueue(run_wait_for_still, when + TICK);
+      return;
+   }
+
+   rs.calibrate_down();
+   eq.enqueue(run, when + TICK);
 }
 
 void run(event_queue& eq, const timestamp_t& when) {
@@ -499,57 +513,23 @@ void run(event_queue& eq, const timestamp_t& when) {
 
    int32_t pos = stepper.pos();
    int32_t new_pos = pos;
-      
-   if (rs.state == STILL) {
-      
-      if (rs.still()) {
-         new_pos = 0;
-         serial.p("jerk m <= o, next swing o\n");
-         rs.state = SWING_O;
-      }
-   }
-   else if (rs.state == SWING_O and rs.decelerating(8) and rs.ang_speed(0) < 4 and rs.ang(0) > DOWN + 10) {
+   uint32_t ang = rs.ang(0);
+   int32_t  ang_speed = rs.ang_speed(0);
+
+   // Swing it to a balancable position.
+   if (DOWN <= ang and ang < SWING_HI) {
       new_pos = mid_pos + 150;
-      serial.p("swing add m => o, next swing m\n");
+      serial.p("swing add m => o, next swing m ", ang, " ", ang_speed, " ", pos, "\n");
       rs.state = SWING_M;
    }
-   else if (rs.state == SWING_M and rs.decelerating(8) and rs.ang_speed(0) > -4 and rs.ang(0) < DOWN - 10) {
+   else if (SWING_LO < ang and ang < DOWN) {
       new_pos = mid_pos - 150;
-      serial.p("swing add m <= o, next swing o\n");
+      serial.p("swing add m <= o, next swing o ", ang, " ", ang_speed, " ", pos, "\n");
       rs.state = SWING_O;
    }
-   else {
+   else if (BALANCE_LO < ang and ang < BALANCE_HI) {
       // serial.p("nothing ", rs.ang(0), "\n");
    }
-
-   // WHY IS THIS SO MUCH BETTER?
-   // if (not (last_ang < BAD_LO or BAD_HI < last_ang or curr_ang < BAD_LO or BAD_HI < curr_ang or 512 < angular_speed)) {
-   //    // Range and speed seems fine.
-   // 
-   //    if (curr_ang < BALANCE_LO or BALANCE_HI < curr_ang) {
-   //       // We can't balance from here try to swing it.
-   //       
-   //       if (SWING_LO < curr_ang and curr_ang < SWING_HI) {
-   // 
-   //          if (DOWN - 30 < curr_ang and curr_ang < DOWN + 30 and angular_speed == 0) {
-   //             // Not swinging at all, make a forcefull jerk to the side.
-   //             new_pos = 0;
-   //          }
-   //          else if (curr_ang < DOWN - 30) {
-   //             // Set to swing pos m, a bit of center.
-   //             new_pos = (o_end_pos - m_end_pos) / 2 - 150;
-   //          }
-   //          else if (DOWN + 30 < curr_ang) {
-   //             // Set to swing pos o, a bit of center.
-   //             new_pos = (o_end_pos - m_end_pos) / 2 + 150;
-   //          }
-   //       }
-   //    }
-   // }
-   // 
-   // if (new_pos != pos) {
-   //    stepper.target_pos(min(max(new_pos, m_end_pos + 100), o_end_pos - 100));
-   // };
 
    if (new_pos != pos) {
       stepper.target_pos(min(max(new_pos, m_end_pos + 100), o_end_pos - 100));
