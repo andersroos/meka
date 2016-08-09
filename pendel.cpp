@@ -266,8 +266,8 @@ constexpr uint32_t UP = DEG_90;
 constexpr uint32_t OTHER = DEG_90 * 2;
 constexpr uint32_t DOWN = DEG_90 * 3;
 constexpr uint32_t ANG_MASK = 0x03FF;
-constexpr int32_t BALANCE_LO = UP - DEG_45;
-constexpr int32_t BALANCE_HI = UP + DEG_45;
+constexpr int32_t BALANCE_LO = UP - 80;
+constexpr int32_t BALANCE_HI = UP + 80;
 constexpr int32_t SWING_LO = DOWN - DEG_45;
 constexpr int32_t SWING_HI = DOWN + DEG_45;
 constexpr uint32_t DEAD_ZONE_OTHER_LO = 400; // When one of the pots are in this range
@@ -280,9 +280,9 @@ constexpr timestamp_t TICK = MILLIS * 10;
 // This is the factor to calculate the number of steps that corresponds to an ang for the pendulum. This is
 // pendelum_length*sin(ang/1024*2*pi) * steps_per_meter but for small angles sin(x) = x, for simplicity the factor is
 // pendelum_length / 1024 * pi * steps_per_meter.
-constexpr float LENGTH = 0.12;
+constexpr float LENGTH = 0.15;
 constexpr float STEPS_PER_METER = 1240/0.245;
-constexpr uint32_t STEPS_PER_ANG = LENGTH / 1024 * 2 * PI * STEPS_PER_METER;
+constexpr float STEPS_PER_ANG = LENGTH / 1024 * 2 * PI * STEPS_PER_METER;
 
 // Helper class for handling state.
 struct run_state {
@@ -440,14 +440,6 @@ struct run_state {
          }      
       }
       last_measure = now;
-
-      // for (uint8_t i = 0; i < STATE_SIZE; ++i) {
-      //    serial.p(i, " ", ang(i), " ", ang_speed(i), "\n");
-      // }
-
-      // if (tick_count % 64 == 0) {
-      //    serial.p(dead_zone, " ", ang(0), " ", ang_speed(0), "\n");
-      // }
    }
 
    // Return true if pointing up-ish and is slow enough.
@@ -519,7 +511,7 @@ void run(event_queue& eq, const timestamp_t& when) {
    const char* what = "noop";
 
    // Swing it to a balancable position.
-   if (abs(ang_speed) < 30 and SWING_LO < ang and ang < SWING_HI) {
+   if (abs(ang_speed) < 25 and SWING_LO < ang and ang < SWING_HI) {
       if (DOWN <= ang) {
          what = "swing m => o";
          new_target = mid_pos + 150;
@@ -536,7 +528,7 @@ void run(event_queue& eq, const timestamp_t& when) {
          // Swinging to motor side.
          if (ang > UP) {
             what = "capture before apex m => o";
-            new_target = pos + STEPS_PER_ANG * (ang - UP);
+            new_target = pos + STEPS_PER_ANG * (ang - UP); // + ang_speed * 2);
          }
          else if (ang < UP) {
             what = "capture after apex m => o";
