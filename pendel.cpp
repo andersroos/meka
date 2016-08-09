@@ -519,20 +519,49 @@ void run(event_queue& eq, const timestamp_t& when) {
    const char* what = "noop";
 
    // Swing it to a balancable position.
-   if (DOWN <= ang and ang < SWING_HI) {
-      new_target = mid_pos + 150;
-      what = "swing m => o";
+   if (abs(ang_speed) < 30 and SWING_LO < ang and ang < SWING_HI) {
+      if (DOWN <= ang) {
+         what = "swing m => o";
+         new_target = mid_pos + 150;
+      }
+      else if (ang < DOWN) {
+         what = "swing m <= o";
+         new_target = mid_pos - 150;
+      }
    }
-   else if (SWING_LO < ang and ang < DOWN) {
-      new_target = mid_pos - 150;
-      what = "swing m <= o";
+   else if (abs(ang_speed) < 10 and BALANCE_LO < ang and ang < BALANCE_HI) {
+      // TODO need speed factor.
+
+      if (ang_speed < 0) {
+         // Swinging to motor side.
+         if (ang > UP) {
+            what = "capture before apex m => o";
+            new_target = pos + STEPS_PER_ANG * (ang - UP);
+         }
+         else if (ang < UP) {
+            what = "capture after apex m => o";
+            new_target = pos + STEPS_PER_ANG * (UP - ang);
+         }
+      }
+      else if (ang_speed > 0) {
+         // Swinging to other sidde.
+         if (ang < UP) {
+            what = "capture before apex m <= o";
+            new_target = pos - STEPS_PER_ANG * (UP - ang);
+         }
+         else if (ang_speed > 0 and ang > UP) {
+            what = "capture after apex m <= o";
+            new_target = pos - STEPS_PER_ANG * (ang - UP);
+         }
+      }
    }
-   else if (BALANCE_LO < ang and ang < BALANCE_HI) {
-      // serial.p("nothing ", rs.ang(0), "\n");
-   }
+   
+   // float LENGTH = 0.12;
+   // float STEPS_PER_METER = 1240/0.245;
+   // uint32_t STEPS_PER_ANG = LENGTH / 1024 * 2 * PI * STEPS_PER_METER;
 
    if (new_target != target) {
-      serial.p(what, ", pos ", pos, ", target ", target, " -> ", new_target,
+      serial.p(what, ", pos ", pos, ", target ", target, " => ", new_target,
                ", ang ", ang, ", speed ", ang_speed, "\n");
       stepper.target_pos(min(max(new_target, m_end_pos + 100), o_end_pos - 100));
    };
