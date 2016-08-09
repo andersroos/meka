@@ -200,7 +200,7 @@ void calibrate_center(event_queue& eq, const timestamp_t& when)
       return;
    }
 
-   serial.p("calirated to ", m_end_pos, " - ", o_end_pos, "\n");
+   serial.p("calibrated to ", m_end_pos, " - ", mid_pos, " - ", o_end_pos, "\n");
    
    eq.enqueue_now(run_prepare);
 }
@@ -512,27 +512,29 @@ void run(event_queue& eq, const timestamp_t& when) {
    rs.measure();
 
    int32_t pos = stepper.pos();
-   int32_t new_pos = pos;
+   int32_t target = stepper.target_pos();
+   int32_t new_target = target;
    uint32_t ang = rs.ang(0);
    int32_t  ang_speed = rs.ang_speed(0);
+   const char* what = "noop";
 
    // Swing it to a balancable position.
    if (DOWN <= ang and ang < SWING_HI) {
-      new_pos = mid_pos + 150;
-      serial.p("swing add m => o, next swing m ", ang, " ", ang_speed, " ", pos, "\n");
-      rs.state = SWING_M;
+      new_target = mid_pos + 150;
+      what = "swing m => o";
    }
    else if (SWING_LO < ang and ang < DOWN) {
-      new_pos = mid_pos - 150;
-      serial.p("swing add m <= o, next swing o ", ang, " ", ang_speed, " ", pos, "\n");
-      rs.state = SWING_O;
+      new_target = mid_pos - 150;
+      what = "swing m <= o";
    }
    else if (BALANCE_LO < ang and ang < BALANCE_HI) {
       // serial.p("nothing ", rs.ang(0), "\n");
    }
 
-   if (new_pos != pos) {
-      stepper.target_pos(min(max(new_pos, m_end_pos + 100), o_end_pos - 100));
+   if (new_target != target) {
+      serial.p(what, ", pos ", pos, ", target ", target, " -> ", new_target,
+               ", ang ", ang, ", speed ", ang_speed, "\n");
+      stepper.target_pos(min(max(new_target, m_end_pos + 100), o_end_pos - 100));
    };
    
    eq.enqueue(run, when + TICK);
