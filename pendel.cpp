@@ -573,9 +573,9 @@ void run(event_queue& eq, const timestamp_t& when) {
       int32_t rel_ang = ang - UP;
       int32_t rel_ang_sum = rs.rel_ang_sum(UP, 8);
 
-      constexpr float Kp = 1.00;
-      constexpr float Ki = 0.06;
-      constexpr float Kd = 0.11;
+      constexpr float Kp = 1.000;
+      constexpr float Ki = 0.060;
+      constexpr float Kd = 0.110;
       
       float p_steps = Kp * rel_ang * STEPS_PER_ANG;
       float i_steps = Ki * rel_ang_sum * STEPS_PER_ANG;
