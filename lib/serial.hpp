@@ -174,7 +174,35 @@ private:
       
       return r;
    }
-   
+
+   const char* _p(char* buf, float m)
+   {
+      bool neg = false;
+      if (m < 0) {
+         neg = true;
+         m = -m;
+      }
+      
+      // As a quick hack for now print as a fixed point number with 3 decimals.
+      auto r = const_cast<char*>(_p(buf, long(m * 1000)));
+      
+      // Insert decimal point and zeroes if needed.
+      char* p = r;
+      while (p >= buf + TMP_BUF_SIZE - 4) {
+         *--p = '0';
+      }
+      
+      memmove(p - 1, p, (buf + TMP_BUF_SIZE - 4) - p);
+      buf[TMP_BUF_SIZE - 5] = '.';
+      --p;
+      
+      if (neg) {
+         *--p = '-';
+      }
+      
+      return p;
+   }
+
    const char* _p(char* buf, int m)
    {
       return _p(buf, long(m));

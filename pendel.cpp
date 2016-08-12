@@ -109,6 +109,7 @@ void loop()
    eq.run();
 }
 
+// TODO Calibrate broken if power is off.
 void calibrate_standby(event_queue& eq, const timestamp_t& when)
 {
    if (not start_but.pressed()) {
@@ -119,7 +120,7 @@ void calibrate_standby(event_queue& eq, const timestamp_t& when)
    g_led_blink.start(SLOW_BLINK_DELAY);
 
    serial.p("calibrating\n");
-      
+   
    // We need a fast acceleration to be able to stop when reaching end, but not crazy fast so we miss steps.
    stepper.acceleration(MAX_ACCELERATION * 0.7);
       
@@ -275,14 +276,11 @@ constexpr uint32_t DEAD_ZONE_OTHER_HI = 650; // the other pot is in dead zone.
 constexpr uint32_t MAX_DELTA = 180;          // If angle changes more within a TICK this is unreliable. TODO Use?
 
 constexpr timestamp_t TICK = MILLIS * 10;
-#define STATE_SIZE 8
+#define STATE_SIZE 32
 
 // This is the factor to calculate the number of steps that corresponds to an ang for the pendulum. This is
 // pendelum_length*sin(ang/1024*2*pi) * steps_per_meter but for small angles sin(x) = x, for simplicity the factor is
 // pendelum_length / 1024 * pi * steps_per_meter.
-constexpr float LENGTH = 0.15;
-constexpr float STEPS_PER_METER = 1240/0.245;
-constexpr float STEPS_PER_ANG = LENGTH / 1024 * 2 * PI * STEPS_PER_METER;
 
 // Helper class for handling state.
 struct run_state {
@@ -345,6 +343,8 @@ struct run_state {
    uint32_t     a1;                    // Latest raw angle measurement.      
    uint32_t    tick_count;             // Useful for debug printouts.
    int32_t     _ang_speed[STATE_SIZE]; // Angular speed measured in steps/tick, 1024 steps total.
+   int32_t     step_pos; 
+   int32_t     step_speed;             // Number of steps since last tick.
    uint32_t    _ang[STATE_SIZE];       // Calculated position, see above for positions.
    timestamp_t last_measure;           // Last time we did measure.
    uint32_t    delta0;                 // Add to get true ang from measurement (this changes all the time).
@@ -373,13 +373,18 @@ struct run_state {
       }
       
       int32_t sum = 0;
-      bool still = true;
+      uint8_t nonzero = 0;
       for (uint8_t i = 0; i < STATE_SIZE; ++i) {
          sum += ang_speed(i);
-         still = still and -2 < ang_speed(i) and ang_speed(i) < 2;
+         if (ang_speed(i) != 0) {
+            ++nonzero;
+         }
       }
-      if (still and -2 < sum and sum < 2) {
+      if (nonzero < 3 and sum == 0) {
          // We are still.
+         // TODO for (uint8_t i = 0; i < STATE_SIZE; ++i) {
+         // TODO    serial.p("still ang ", ang(i), " ang_speed ", ang_speed(i), "\n");
+         // TODO }
          return true;
       }
       return false;
@@ -408,6 +413,10 @@ struct run_state {
       --index;
       auto now = now_us();
 
+      auto p = stepper.pos();
+      step_speed = p - step_pos;
+      step_pos = p;
+      
       // Do the measurement.
       a0 = analogRead(POT_0);
       a1 = analogRead(POT_1);
@@ -453,8 +462,6 @@ struct run_state {
    {
       return SWING_LO < ang(0) and ang(0) < SWING_HI and abs(ang_speed(0)) < 50;
    }
-
-
 };
 
 run_state rs;
@@ -486,6 +493,7 @@ void run_wait_for_still(event_queue& eq, const timestamp_t& when) {
    eq.enqueue(run, when + TICK);
 }
 
+bool in_swing = false;
 void run(event_queue& eq, const timestamp_t& when) {
 
    if (m_end_switch.value() or o_end_switch.value()) {
@@ -504,60 +512,157 @@ void run(event_queue& eq, const timestamp_t& when) {
    rs.measure();
 
    int32_t pos = stepper.pos();
+   int32_t step_speed = rs.step_speed;
    int32_t target = stepper.target_pos();
    int32_t new_target = target;
    uint32_t ang = rs.ang(0);
    int32_t  ang_speed = rs.ang_speed(0);
    const char* what = "noop";
 
+   if (SWING_LO < ang and ang < SWING_HI) {
+   }
+   
    // Swing it to a balancable position.
-   if (abs(ang_speed) < 25 and SWING_LO < ang and ang < SWING_HI) {
+   if (SWING_LO < ang and ang < SWING_HI) {
+      uint32_t speed = abs(ang_speed);
+      uint32_t swing_dist;
+      
+      //if (speed < 15)
+      //   swing_dist = 200;
+      //else if (15 <= speed <= 25)
+      //   swing_dist = 100;
+      //else
+      swing_dist = 0;
+      
       if (DOWN <= ang) {
          what = "swing m => o";
-         new_target = mid_pos + 150;
+         new_target = mid_pos + swing_dist;
       }
       else if (ang < DOWN) {
          what = "swing m <= o";
-         new_target = mid_pos - 150;
+         new_target = mid_pos - swing_dist;
+      }
+      
+      if (not in_swing) {
+         serial.p("=== pass swing ===\n");
+         in_swing = true;
       }
    }
-   else if (abs(ang_speed) < 10 and BALANCE_LO < ang and ang < BALANCE_HI) {
-      // TODO need speed factor.
+   else if (BALANCE_LO < ang and ang < BALANCE_HI) {
+      in_swing = false;
+      
+      constexpr float LENGTH = 0.16;
+      constexpr float STEPS_PER_METER = 1240 / 0.245;
+      constexpr float STEPS_PER_ANG = LENGTH / 1024 * 2 * PI * STEPS_PER_METER; // =~ 3.7
+      constexpr float ANG_PER_STEP = 1 / STEPS_PER_ANG; // =~ 0.27
 
-      if (ang_speed < 0) {
-         // Swinging to motor side.
-         if (ang > UP) {
-            what = "capture before apex m => o";
-            new_target = pos + STEPS_PER_ANG * (ang - UP); // + ang_speed * 2);
-         }
-         else if (ang < UP) {
-            what = "capture after apex m => o";
-            new_target = pos + STEPS_PER_ANG * (UP - ang);
-         }
-      }
-      else if (ang_speed > 0) {
-         // Swinging to other sidde.
-         if (ang < UP) {
-            what = "capture before apex m <= o";
-            new_target = pos - STEPS_PER_ANG * (UP - ang);
-         }
-         else if (ang_speed > 0 and ang > UP) {
-            what = "capture after apex m <= o";
-            new_target = pos - STEPS_PER_ANG * (ang - UP);
-         }
-      }
+      constexpr float SPEED_PER_ANG = 4.0 / 70; // =~ 0.057
+      constexpr float ANG_PER_SPEED = 1 / SPEED_PER_ANG; // =~ 18
+
+      // Stepper will affect ang_speed, so true_speed is an attempt to calculate ang_speed as it would have been if
+      // steper did not move.
+
+      // Table for speed at apex (passing apex)
+
+      //  0:  70 -6
+      //      59 -5
+      //      45 -4
+      //      26 -3
+      //      11 -1
+
+      // -3:  71 -7
+      //      59 -6
+      //      42 -5
+      //      25 -4
+      //      10 -3
+
+      // -4:  70 -9
+      //      62 -8
+      //      48 -7
+      //      28 -6
+      //      16 -5
+
+      // -6:  75 -10
+      //      65  -9
+      //      56  -8
+      //      39  -7
+      //      22  -7
+      //      16  -6
+      
+      // -9:  74 -14
+      //      62 -13
+      //      50 -12
+      //      38 -12
+      //      27 -11
+      //      16 -11
+
+
+      
+      float true_speed = ang_speed + step_speed * ANG_PER_STEP;
+      
+      int32_t rel_ang = ang - UP;
+      float speed_change = float(SPEED_PER_ANG * rel_ang);
+      float speed_at_apex = float(true_speed) + speed_change;
+
+      serial.p("in zone, pos ", pos
+               , " rel_ang ", rel_ang
+               , ", speed ", ang_speed
+               , ", step_speed ", step_speed
+               , ", true_speed ", true_speed
+               , ", at_apex ", speed_at_apex
+               , ", t ", rs.tick_count, "\n");
+
+      //if (pos == target) {
+      //if (abs(speed_at_apex) < 6) {
+      //
+      //   if (true_speed < 0 and rel_ang > 0) {
+      //      what = "capture before apex m <- o";
+      //      int32_t steps = int32_t(speed_at_apex * ANG_PER_SPEED * STEPS_PER_ANG);
+      //      new_target = pos + steps;
+      //   }
+      //   else if (true_speed > 0 and rel_ang < 0) {
+      //      what = "capture before apex m -> o";
+      //      int32_t steps = int32_t(speed_at_apex * ANG_PER_SPEED * STEPS_PER_ANG);
+      //      new_target = pos + steps;
+      //   }
+      //}
+
+      //    if (ang > UP) {
+      //       what = "capture before apex m => o";
+      //       new_target = pos + STEPS_PER_ANG * (ang - UP); // + ang_speed * 2);
+      //    }
+      //    else if (ang < UP) {
+      //       what = "capture after apex m => o";
+      //       new_target = pos + STEPS_PER_ANG * (UP - ang);
+      //    }
+      // }
+      // else if (ang_speed > 0) {
+      //    // Swinging to other sidde.
+      //    if (ang < UP) {
+      //       what = "capture before apex m <= o";
+      //       new_target = pos - STEPS_PER_ANG * (UP - ang);
+      //    }
+      //    else if (ang_speed > 0 and ang > UP) {
+      //       what = "capture after apex m <= o";
+      //       new_target = pos - STEPS_PER_ANG * (ang - UP);
+      //    }
+      // }
+   }
+   else {
+      in_swing = false;
    }
    
-   // float LENGTH = 0.12;
-   // float STEPS_PER_METER = 1240/0.245;
-   // uint32_t STEPS_PER_ANG = LENGTH / 1024 * 2 * PI * STEPS_PER_METER;
-
    if (new_target != target) {
-      serial.p(what, ", pos ", pos, ", target ", target, " => ", new_target,
-               ", ang ", ang, ", speed ", ang_speed, "\n");
-      stepper.target_pos(min(max(new_target, m_end_pos + 100), o_end_pos - 100));
+      if (m_end_pos + 100 < new_target and new_target < o_end_pos - 100) {
+         stepper.target_pos(new_target);
+         serial.p(what, ", pos ", pos, ", target ", target, " => ", new_target,
+                  " (", new_target - pos, "), ang ", ang, ", speed ", ang_speed, "\n");
+      }
+      else {
+         serial.p(what, ", ignoring overflow move\n");
+      }
    };
-   
+
    eq.enqueue(run, when + TICK);
 }
 
@@ -569,7 +674,7 @@ void run_step(event_queue& eq, const timestamp_t& when)
    }
 
    if (stepper.is_stopped()) {
-      eq.enqueue(run_step, when + 20 * MILLIS);
+      eq.enqueue(run_step, when + MILLIS);
       return;
    }
 
