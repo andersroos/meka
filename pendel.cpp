@@ -20,7 +20,7 @@
 #include "pendel_pins.hpp"
 
 #define SMOOTH_DELAY       200
-#define MAX_ACCELERATION 50000
+#define MAX_ACCELERATION 40000
 #define MAX_SPEED        12000
 #define APPROX_DISTANCE  1500
 
@@ -267,8 +267,8 @@ constexpr uint32_t UP = DEG_90;
 constexpr uint32_t OTHER = DEG_90 * 2;
 constexpr uint32_t DOWN = DEG_90 * 3;
 constexpr uint32_t ANG_MASK = 0x03FF;
-constexpr int32_t BALANCE_LO = UP - 80;
-constexpr int32_t BALANCE_HI = UP + 80;
+constexpr int32_t BALANCE_LO = UP - 100;
+constexpr int32_t BALANCE_HI = UP + 100;
 constexpr int32_t SWING_LO = DOWN - DEG_45;
 constexpr int32_t SWING_HI = DOWN + DEG_45;
 constexpr uint32_t DEAD_ZONE_OTHER_LO = 400; // When one of the pots are in this range
@@ -276,7 +276,7 @@ constexpr uint32_t DEAD_ZONE_OTHER_HI = 650; // the other pot is in dead zone.
 constexpr uint32_t MAX_DELTA = 180;          // If angle changes more within a TICK this is unreliable. TODO Use?
 
 constexpr timestamp_t TICK = MILLIS * 10;
-#define STATE_SIZE 32
+#define STATE_SIZE 16
 
 // This is the factor to calculate the number of steps that corresponds to an ang for the pendulum. This is
 // pendelum_length*sin(ang/1024*2*pi) * steps_per_meter but for small angles sin(x) = x, for simplicity the factor is
@@ -380,14 +380,19 @@ struct run_state {
             ++nonzero;
          }
       }
-      if (nonzero < 3 and sum == 0) {
-         // We are still.
-         // TODO for (uint8_t i = 0; i < STATE_SIZE; ++i) {
-         // TODO    serial.p("still ang ", ang(i), " ang_speed ", ang_speed(i), "\n");
-         // TODO }
+      if (nonzero < 6 and sum == 0) {
          return true;
       }
+      // serial.p("still ", nonzero, " ", sum, "\n");
       return false;
+   }
+
+   int32_t rel_ang_sum(int32_t rel, uint8_t count) {
+      int32_t sum = 0;
+      for (uint8_t i = 0; i < count; ++i) {
+         sum += ang(i) - rel;
+      }
+      return sum;
    }
    
    void reset()
@@ -519,20 +524,17 @@ void run(event_queue& eq, const timestamp_t& when) {
    int32_t  ang_speed = rs.ang_speed(0);
    const char* what = "noop";
 
-   if (SWING_LO < ang and ang < SWING_HI) {
-   }
-   
    // Swing it to a balancable position.
    if (SWING_LO < ang and ang < SWING_HI) {
       uint32_t speed = abs(ang_speed);
       uint32_t swing_dist;
       
-      //if (speed < 15)
-      //   swing_dist = 200;
-      //else if (15 <= speed <= 25)
-      //   swing_dist = 100;
-      //else
-      swing_dist = 0;
+      if (speed < 20)
+         swing_dist = 200;
+      else if (speed < 30)
+         swing_dist = 120;
+      else
+         swing_dist = 0;
       
       if (DOWN <= ang) {
          what = "swing m => o";
@@ -549,6 +551,8 @@ void run(event_queue& eq, const timestamp_t& when) {
       }
    }
    else if (BALANCE_LO < ang and ang < BALANCE_HI) {
+      what = "balancing";
+      
       in_swing = false;
       
       constexpr float LENGTH = 0.16;
@@ -562,55 +566,44 @@ void run(event_queue& eq, const timestamp_t& when) {
       // Stepper will affect ang_speed, so true_speed is an attempt to calculate ang_speed as it would have been if
       // steper did not move.
 
-      // Table for speed at apex (passing apex)
-
-      //  0:  70 -6
-      //      59 -5
-      //      45 -4
-      //      26 -3
-      //      11 -1
-
-      // -3:  71 -7
-      //      59 -6
-      //      42 -5
-      //      25 -4
-      //      10 -3
-
-      // -4:  70 -9
-      //      62 -8
-      //      48 -7
-      //      28 -6
-      //      16 -5
-
-      // -6:  75 -10
-      //      65  -9
-      //      56  -8
-      //      39  -7
-      //      22  -7
-      //      16  -6
-      
-      // -9:  74 -14
-      //      62 -13
-      //      50 -12
-      //      38 -12
-      //      27 -11
-      //      16 -11
-
-
-      
       float true_speed = ang_speed + step_speed * ANG_PER_STEP;
       
-      int32_t rel_ang = ang - UP;
-      float speed_change = float(SPEED_PER_ANG * rel_ang);
-      float speed_at_apex = float(true_speed) + speed_change;
+      // PID Regulation.
 
-      serial.p("in zone, pos ", pos
-               , " rel_ang ", rel_ang
-               , ", speed ", ang_speed
-               , ", step_speed ", step_speed
-               , ", true_speed ", true_speed
-               , ", at_apex ", speed_at_apex
-               , ", t ", rs.tick_count, "\n");
+      int32_t rel_ang = ang - UP;
+      int32_t rel_ang_sum = rs.rel_ang_sum(UP, 8);
+
+      constexpr float Kp = 1.00;
+      constexpr float Ki = 0.06;
+      constexpr float Kd = 0.11;
+      
+      float p_steps = Kp * rel_ang * STEPS_PER_ANG;
+      float i_steps = Ki * rel_ang_sum * STEPS_PER_ANG;
+      float d_steps = Kd * true_speed * ANG_PER_SPEED * STEPS_PER_ANG;
+
+      serial.p("in zone",
+               ", rel_ang ", rel_ang,
+               ", rel_ang_sum ", rel_ang_sum,
+               ", ang_speed ", ang_speed,
+               ", step_speed", step_speed,
+               ", true_speed ", true_speed,
+               ", p_steps ", p_steps,
+               ", i_steps ", i_steps,
+               ", d_steps ", d_steps,
+               ", t ", rs.tick_count, "\n");
+      
+      new_target = pos + p_steps + i_steps + d_steps;
+      
+      // float speed_change = float(SPEED_PER_ANG * rel_ang);
+      // float speed_at_apex = float(true_speed) + speed_change;
+
+      // serial.p("in zone, pos ", pos
+      //          , " rel_ang ", rel_ang
+      //          , ", speed ", ang_speed
+      //          , ", step_speed ", step_speed
+      //          , ", true_speed ", true_speed
+      //          , ", at_apex ", speed_at_apex
+      //          , ", t ", rs.tick_count, "\n");
 
       //if (pos == target) {
       //if (abs(speed_at_apex) < 6) {
@@ -653,14 +646,19 @@ void run(event_queue& eq, const timestamp_t& when) {
    }
    
    if (new_target != target) {
-      if (m_end_pos + 100 < new_target and new_target < o_end_pos - 100) {
-         stepper.target_pos(new_target);
-         serial.p(what, ", pos ", pos, ", target ", target, " => ", new_target,
-                  " (", new_target - pos, "), ang ", ang, ", speed ", ang_speed, "\n");
+      const char* limited_message = "";
+      if (new_target < m_end_pos + 100) {
+         limited_message = ", hit motor limit";
+         new_target = m_end_pos + 100;
       }
-      else {
-         serial.p(what, ", ignoring overflow move\n");
+      else if (o_end_pos - 100 < new_target) {
+         limited_message = ", hit other limit";
+         new_target = o_end_pos - 100;
       }
+      stepper.target_pos(new_target);
+      // serial.p(what, ", pos ", pos, ", target ", target, " => ", new_target,
+      //          " (", new_target - pos, "), ang ", ang, ", speed ", ang_speed,
+      //          limited_message, "\n");
    };
 
    eq.enqueue(run, when + TICK);
