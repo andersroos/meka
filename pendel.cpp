@@ -20,9 +20,9 @@
 #include "pendel_pins.hpp"
 
 #define SMOOTH_DELAY       200
-#define MAX_ACCELERATION 40000
+#define MAX_ACCELERATION 56000
 #define MAX_SPEED        12000
-#define APPROX_DISTANCE  1500
+#define APPROX_DISTANCE  3000
 
 #define START_BUT     G_BUT
 #define PAUS_BUT      Y_BUT
@@ -267,8 +267,8 @@ constexpr uint32_t UP = DEG_90;
 constexpr uint32_t OTHER = DEG_90 * 2;
 constexpr uint32_t DOWN = DEG_90 * 3;
 constexpr uint32_t ANG_MASK = 0x03FF;
-constexpr int32_t BALANCE_LO = UP - 100;
-constexpr int32_t BALANCE_HI = UP + 100;
+constexpr int32_t BALANCE_LO = UP - 120;
+constexpr int32_t BALANCE_HI = UP + 120;
 constexpr int32_t SWING_LO = DOWN - DEG_45;
 constexpr int32_t SWING_HI = DOWN + DEG_45;
 constexpr uint32_t DEAD_ZONE_OTHER_LO = 400; // When one of the pots are in this range
@@ -529,10 +529,10 @@ void run(event_queue& eq, const timestamp_t& when) {
       uint32_t speed = abs(ang_speed);
       uint32_t swing_dist;
       
-      if (speed < 20)
+      if (speed < 25)
          swing_dist = 200;
       else if (speed < 30)
-         swing_dist = 120;
+         swing_dist = 140;
       else
          swing_dist = 0;
       
@@ -571,11 +571,11 @@ void run(event_queue& eq, const timestamp_t& when) {
       // PID Regulation.
 
       int32_t rel_ang = ang - UP;
-      int32_t rel_ang_sum = rs.rel_ang_sum(UP, 8);
+      int32_t rel_ang_sum = rs.rel_ang_sum(UP, 4);
 
-      constexpr float Kp = 1.000;
-      constexpr float Ki = 0.060;
-      constexpr float Kd = 0.110;
+      constexpr float Kp = 1.020;
+      constexpr float Ki = 0.100;
+      constexpr float Kd = 0.120;
       
       float p_steps = Kp * rel_ang * STEPS_PER_ANG;
       float i_steps = Ki * rel_ang_sum * STEPS_PER_ANG;
@@ -585,7 +585,7 @@ void run(event_queue& eq, const timestamp_t& when) {
                ", rel_ang ", rel_ang,
                ", rel_ang_sum ", rel_ang_sum,
                ", ang_speed ", ang_speed,
-               ", step_speed", step_speed,
+               ", step_speed ", step_speed,
                ", true_speed ", true_speed,
                ", p_steps ", p_steps,
                ", i_steps ", i_steps,
@@ -656,9 +656,9 @@ void run(event_queue& eq, const timestamp_t& when) {
          new_target = o_end_pos - 100;
       }
       stepper.target_pos(new_target);
-      // serial.p(what, ", pos ", pos, ", target ", target, " => ", new_target,
-      //          " (", new_target - pos, "), ang ", ang, ", speed ", ang_speed,
-      //          limited_message, "\n");
+      serial.p(what, ", pos ", pos, ", target ", target, " => ", new_target,
+               " (", new_target - pos, "), ang ", ang, ", speed ", ang_speed,
+               limited_message, "\n");
    };
 
    eq.enqueue(run, when + TICK);
