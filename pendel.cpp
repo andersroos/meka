@@ -20,7 +20,7 @@
 #include "pendel_pins.hpp"
 
 #define SMOOTH_DELAY       200
-#define MAX_ACCELERATION 56000
+#define MAX_ACCELERATION 60000
 #define MAX_SPEED        12000
 #define APPROX_DISTANCE  3000
 
@@ -113,6 +113,7 @@ void loop()
 void calibrate_standby(event_queue& eq, const timestamp_t& when)
 {
    if (not start_but.pressed()) {
+      // serial.p("pot0 ", analogRead(POT_0), " pot1 ", analogRead(POT_1), "\n");
       eq.enqueue(calibrate_standby, when + BUTTON_READ_DELAY);
       return;
    }
@@ -260,8 +261,8 @@ constexpr uint32_t UP = DEG_90;
 constexpr uint32_t OTHER = DEG_90 * 2;
 constexpr uint32_t DOWN = DEG_90 * 3;
 constexpr uint32_t ANG_MASK = 0x03FF;
-constexpr int32_t BALANCE_LO = UP - 120;
-constexpr int32_t BALANCE_HI = UP + 120;
+constexpr int32_t BALANCE_LO = UP - 100;
+constexpr int32_t BALANCE_HI = UP + 100;
 constexpr int32_t SWING_LO = DOWN - DEG_45;
 constexpr int32_t SWING_HI = DOWN + DEG_45;
 constexpr uint32_t DEAD_ZONE_OTHER_LO = 400; // When one of the pots are in this range
@@ -298,8 +299,9 @@ struct run_state {
    // Given that pendulum is down, set delta_0 and delta_1.
    void calibrate_down()
    {
-      delta0 = (DOWN - a0) & ANG_MASK;
-      delta1 = (DOWN - a1) & ANG_MASK;
+      // TODO Added stupid constants to compensate for bad measuring at the top.
+      delta0 = (DOWN - a0 - 1) & ANG_MASK;
+      delta1 = (DOWN - a1 - 1) & ANG_MASK;
       serial.p("calibrated down, delta0 ", delta0, ", delta1 ", delta1, " a0 ", a0, " a1 ", a1, "\n");      
    }
    
@@ -394,17 +396,6 @@ struct run_state {
       last_measure = now;
    }
 
-   // Return true if pointing up-ish and is slow enough.
-   bool can_balance()
-   {
-      return BALANCE_LO < ang(0) and ang(0) < BALANCE_HI and abs(ang_speed(0)) < 200;
-   }
-   
-   // Return true if pointing down-ish and is slow.
-   bool need_swinging()
-   {
-      return SWING_LO < ang(0) and ang(0) < SWING_HI and abs(ang_speed(0)) < 50;
-   }
 };
 
 run_state rs;
@@ -424,19 +415,27 @@ void run_start(event_queue& eq, const timestamp_t& when)
    serial.p("waiting for still\n");
 }
 
+bool in_swing = false;
+
 void run_wait_for_still(event_queue& eq, const timestamp_t& when) {
-   rs.measure();
+   if (paus_but.pressed()) {
+      run(eq, when);
+      return;
+   }
    
+   rs.measure();
+
    if (not rs.still()) {
+      serial.p("pot0 ", analogRead(POT_0), " pot1 ", analogRead(POT_1), "\n");
       eq.enqueue(run_wait_for_still, when + TICK);
       return;
    }
 
+   in_swing = false;
    rs.calibrate_down();
    eq.enqueue(run, when + TICK);
 }
 
-bool in_swing = false;
 void run(event_queue& eq, const timestamp_t& when) {
 
    if (m_end_switch.value() or o_end_switch.value()) {
