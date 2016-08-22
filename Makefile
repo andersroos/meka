@@ -13,14 +13,15 @@ CXXFLAGS = -c -g -std=c++11 -Wall -Os
 
 BAUD_RATE = 9600
 
-#BOARD = ArduinoUno
-BOARD = Teensy32
+BOARD = ArduinoUno
+#BOARD = Teensy32
 
-MAIN = pendel
+#MAIN = pendel
 #MAIN = pendel_trial
 #MAIN = stepper_changing_speed_trial
 #MAIN = stepper_speed_trial
 #MAIN = stepper
+MAIN = rotary_encoder
 
 EXTRA_OBJS = # $(ARDUINO_DIR)/libraries/Servo/src/avr/Servo.o
 
