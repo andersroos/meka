@@ -17,6 +17,7 @@
 #include "lib/event_queue.hpp"
 #include "lib/event_utils.hpp"
 #include "lib/serial.hpp"
+#include "lib/rotary_encoder.hpp"
 #include "pendel_pins.hpp"
 
 #define SMOOTH_DELAY       200
@@ -35,6 +36,8 @@ constexpr uint32_t BUTTON_READ_DELAY = 1 * MILLIS;
 event_queue eq;
 
 stepper stepper(DIR, STP, EN, M0, M1, M2, DIR_O, SMOOTH_DELAY);
+
+rotary_encoder<ENC_A, ENC_B, 1024> encoder;
 
 button start_but(START_BUT);
 button paus_but(PAUS_BUT);
@@ -80,8 +83,6 @@ noblock_serial serial(&eq);
 
 void setup()
 {
-   pinMode(POT_0, INPUT);
-   pinMode(POT_1, INPUT);
 }   
 
 uint32_t c = 0;
@@ -254,19 +255,11 @@ void run_pause(event_queue& eq, const timestamp_t& when)
    eq.enqueue_now(run_start);
 }
 
-constexpr uint32_t DEG_45 = 128;
-constexpr uint32_t DEG_90 = DEG_45 * 2;
-constexpr uint32_t MOTOR = 0;
-constexpr uint32_t UP = DEG_90;
-constexpr uint32_t OTHER = DEG_90 * 2;
-constexpr uint32_t DOWN = DEG_90 * 3;
-constexpr uint32_t ANG_MASK = 0x03FF;
-constexpr int32_t BALANCE_LO = UP - 100;
-constexpr int32_t BALANCE_HI = UP + 100;
-constexpr int32_t SWING_LO = DOWN - DEG_45;
-constexpr int32_t SWING_HI = DOWN + DEG_45;
-constexpr uint32_t DEAD_ZONE_OTHER_LO = 400; // When one of the pots are in this range
-constexpr uint32_t DEAD_ZONE_OTHER_HI = 650; // the other pot is in dead zone.
+constexpr ang_t DEG_45 = 128;
+constexpr ang_t DEG_90 = DEG_45 * 2;
+constexpr ang_t DEG_180 = DEG_45 * 3;
+constexpr ang_t DOWN = 0;
+constexpr ang_t UP = -DEG_180;
 
 constexpr timestamp_t TICK = MILLIS * 10;
 #define STATE_SIZE 16
@@ -280,97 +273,82 @@ struct run_state {
 
    uint8_t index;
 
-   uint32_t     a0;                    // Latest raw angle measurement.      
-   uint32_t     a1;                    // Latest raw angle measurement.      
    uint32_t    tick_count;             // Useful for debug printouts.
-   int32_t     _ang_speed[STATE_SIZE]; // Angular speed measured in steps/tick, 1024 steps total.
-   int32_t     step_pos; 
+   ang_t       _ang_speed[STATE_SIZE]; // Angular speed measured in steps/tick, 1024 steps total.
+   ang_t       step_pos; 
    int32_t     step_speed;             // Number of steps since last tick.
-   uint32_t    _ang[STATE_SIZE];       // Calculated position, see above for positions.
+   ang_t       _up_ang[STATE_SIZE];     // Position, relative to up.
+   ang_t       _down_ang[STATE_SIZE];   // Position, relative to down.
    timestamp_t last_measure;           // Last time we did measure.
-   uint32_t    delta0;                 // Add to get true ang from measurement (this changes all the time).
-   uint32_t    delta1;                 // Add to get true ang from measurement (this changes all the time).
    
-   run_state() { reset(); }
+   run_state() {
+      reset();
+   }
 
-   inline int32_t& ang_speed(uint8_t i) { return _ang_speed[(index + i) % STATE_SIZE]; }
-   
-   inline uint32_t& ang(uint8_t i) { return _ang[(index + i) % STATE_SIZE]; }
+   inline ang_t& ang_speed(uint8_t i) { return _ang_speed[(index + i) % STATE_SIZE]; }
 
-   // Given that pendulum is down, set delta_0 and delta_1.
+   inline ang_t& up_ang(uint8_t i) { return _up_ang[(index + i) % STATE_SIZE]; }
+
+   inline ang_t& down_ang(uint8_t i) { return _down_ang[(index + i) % STATE_SIZE]; }
+
+   // Reset encoder in the down position that we assume we are in.
    void calibrate_down()
    {
-      // TODO Added stupid constants to compensate for bad measuring at the top.
-      delta0 = (DOWN - a0 - 1) & ANG_MASK;
-      delta1 = (DOWN - a1 - 1) & ANG_MASK;
-      serial.p("calibrated down, delta0 ", delta0, ", delta1 ", delta1, " a0 ", a0, " a1 ", a1, "\n");
-      for (uint8_t i = 0; i < STATE_SIZE; ++i) {
-         _ang[i] = DOWN;
-         _ang_speed[i] = 0;
-      }
+      encoder.reset();
+      reset_state();
+      serial.p("calibrated down");
    }
    
-   // Return true if appears to be still and down.
+   // Return true if appears to be still and down. Note, after a reset this will return true even if not still and down.
    bool still()
    {
-      if (not (DOWN - DEG_45 < a0 and a0 < DOWN + DEG_45)) {
-         // Calibration can only go so far.
-         return false;
-      }
-      
-      int32_t sum = 0;
-      uint8_t nonzero = 0;
       for (uint8_t i = 0; i < STATE_SIZE; ++i) {
-         sum += ang_speed(i);
          if (ang_speed(i) != 0) {
-            ++nonzero;
+            return false;
          }
       }
-      if (nonzero < 6 and sum == 0) {
-         return true;
-      }
-      // serial.p("still ", nonzero, " ", sum, "\n");
-      return false;
+      return true;
    }
 
-   int32_t rel_ang_sum(int32_t rel, uint8_t count) {
+   int32_t up_ang_sum(uint8_t count) {
       int32_t sum = 0;
       for (uint8_t i = 0; i < count; ++i) {
-         sum += ang(i) - rel;
+         sum += up_ang(i);
       }
       return sum;
    }
 
    bool going_up()
    {
-      auto ang = this->ang(0);
+      auto ang = this->up_ang(0);
       auto ang_speed = this->ang_speed(0);
       
-      if ((ang < UP or DOWN <= ang) and ang_speed >= 0) {
+      if (ang < 0 and 0 <= ang_speed) {
          return true;
       }
 
-      if (UP < ang and ang <= DOWN and ang_speed <= 0) {
+      if (0 < ang and ang_speed <= 0) {
          return true;
       }
 
       return false;
    }
          
-   
-   void reset()
+   void reset_state()
    {
       index = STATE_SIZE - 1;
       for (uint32_t i = 0; i < STATE_SIZE; ++i) {
          ang_speed(i) = 0;
-         ang(i) = 0;
+         up_ang(i) = -DEG_180;
+         down_ang(i) = 0;
       }
-      a0 = 0;
-      a1 = 0;
+   }
+   
+   void reset()
+   {
+      reset_state();
       last_measure = 0;
       tick_count = 0;
-      delta0 = 0;
-      delta1 = 512;
    }
 
    // Measure everything, and store result in cirkbuf of size STATE_SIZE.
@@ -385,34 +363,9 @@ struct run_state {
       step_pos = p;
       
       // Do the measurement.
-      a0 = analogRead(POT_0);
-      a1 = analogRead(POT_1);
-      if (DEAD_ZONE_OTHER_LO < a0 and a0 < DEAD_ZONE_OTHER_HI) {
-         // 1 in dead zone, use only 0.
-         ang(0) = (a0 + delta0) & ANG_MASK;
-      }
-      else if (DEAD_ZONE_OTHER_LO < a1 and a1 < DEAD_ZONE_OTHER_HI) {
-         // 0 in dead zone, use only 1.
-         ang(0) = (a1 + delta1) & ANG_MASK;
-      }
-      else {
-         // No one in dead zone, use avarage.
-         auto aa0 = (a0 + delta0) & ANG_MASK;
-         auto aa1 = (a1 + delta1) & ANG_MASK;
-         if ((aa0 < aa1 ? aa1 - aa0 : aa0 -aa1) > 512) {
-            ang(0) = (((aa0 + aa1 + 1024) >> 1)) & ANG_MASK;
-         }
-         else {
-            ang(0) = (aa0 + aa1) >> 1;
-         }
-      }
-      int32_t as = ang(0) - ang(1);
-      if (as < -512)
-         as += 1024;
-      else if (as > 512) {
-         as -= 1024;
-      }
-      ang_speed(0) = as;
+      down_ang(0) = encoder.ang(DOWN);
+      up_ang(0) = encoder.ang(UP);
+      ang_speed(0) = encoder.rel(down_ang(0), down_ang(1));
       
       if (last_measure) {
          auto tick_duration = now - last_measure;
@@ -428,6 +381,8 @@ struct run_state {
 
 run_state rs;
 
+uint32_t wait_for_still_ticks;
+
 void run_start(event_queue& eq, const timestamp_t& when)
 {
    g_led_blink.start(FAST_BLINK_DELAY);
@@ -439,6 +394,7 @@ void run_start(event_queue& eq, const timestamp_t& when)
    if (not eq.present(run_step)) {
       eq.enqueue_now(run_step);
    }
+   wait_for_still_ticks = 0;
    eq.enqueue_now(run_wait_for_still);
    serial.p("waiting for still\n");
 }
@@ -456,9 +412,9 @@ void run_wait_for_still(event_queue& eq, const timestamp_t& when) {
    }
    
    rs.measure();
-
-   if (not rs.still()) {
-      serial.p("pot0 ", analogRead(POT_0), " pot1 ", analogRead(POT_1), "\n");
+   wait_for_still_ticks++;
+   
+   if (wait_for_still_ticks < 10 and not rs.still()) {
       eq.enqueue(run_wait_for_still, when + TICK);
       return;
    }
@@ -488,14 +444,15 @@ void run(event_queue& eq, const timestamp_t& when) {
    int32_t pos = stepper.pos();
    int32_t target = stepper.target_pos();
    int32_t new_target = target;
-   uint32_t ang = rs.ang(0);
-   int32_t  ang_speed = rs.ang_speed(0);
+   ang_t up_ang = rs.up_ang(0);
+   ang_t down_ang = rs.down_ang(0);
+   ang_t ang_speed = rs.ang_speed(0);
    uint32_t speed = abs(ang_speed);
    const char* what = "noop";
 
    // serial.p(" tick ", rs.tick_count, " ang ", ang, ", ang_speed ", ang_speed, "\n");
    
-   if (BALANCE_LO < ang and ang < BALANCE_HI) {
+   if (abs(up_ang) < 100) {
       
       constexpr float LENGTH = 0.16;
       constexpr float STEPS_PER_METER = 1240 / 0.245;
@@ -516,15 +473,14 @@ void run(event_queue& eq, const timestamp_t& when) {
       
          // PID Regulation.
       
-         int32_t rel_ang = ang - UP;
-         int32_t rel_ang_sum = rs.rel_ang_sum(UP, 4);
+         int32_t up_ang_sum = rs.up_ang_sum(4);
          
          constexpr float Kp = 1.000;
          constexpr float Ki = 0.070;
          constexpr float Kd = 0.110;
       
-         float p_steps = Kp * rel_ang * STEPS_PER_ANG;
-         float i_steps = Ki * rel_ang_sum * STEPS_PER_ANG;
+         float p_steps = Kp * up_ang * STEPS_PER_ANG;
+         float i_steps = Ki * up_ang_sum * STEPS_PER_ANG;
          float d_steps = Kd * true_speed * ANG_PER_SPEED * STEPS_PER_ANG;
 
          new_target = pos + p_steps + i_steps + d_steps;
@@ -552,7 +508,7 @@ void run(event_queue& eq, const timestamp_t& when) {
    //    new_target = pos;
    // }
    // Swing it to a balancable position.
-   else if (SWING_LO < ang and ang < SWING_HI) {
+   else if (abs(down_ang) < DEG_45) {
       if (state == STILL) {
          state = SWING;
       }
@@ -570,7 +526,8 @@ void run(event_queue& eq, const timestamp_t& when) {
          }
       }
       else if (state == SWING) {
-         bool passed_down = (rs.ang(0) < DOWN and DOWN <= rs.ang(4)) or (rs.ang(4) <= DOWN and DOWN < rs.ang(0));
+         auto prev_down_ang = rs.down_ang(4);
+         bool passed_down = (down_ang < 0 and 0 <= prev_down_ang) or (prev_down_ang <= 0 and 0 <down_ang);
 
          if (stepper.is_stopped() and passed_down) {
          
@@ -591,10 +548,10 @@ void run(event_queue& eq, const timestamp_t& when) {
                what = "swing regulated";
 
                uint32_t swing_dist = 300 - (speed - 10) * 6;
-               if (DOWN <= ang) {
+               if (0 <= down_ang) {
                   new_target = mid_pos + swing_dist;
                }
-               else if (ang < DOWN) {
+               else if (down_ang < 0) {
                   new_target = mid_pos - swing_dist;
                }
                //}
@@ -665,7 +622,7 @@ void run(event_queue& eq, const timestamp_t& when) {
                // ", target ", target,
                ", new_target ", new_target,
                // " (", new_target - pos, ")",
-               " ang ", ang,
+               " up_ang ", up_ang,
                ", speed ", ang_speed,
                // ", tick ", rs.tick_count,
                ", ", limited_message, "\n");

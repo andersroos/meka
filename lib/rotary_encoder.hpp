@@ -33,21 +33,21 @@ struct rotary_encoder
       return _raw;
    }
 
-   // Return the current angle compared to a raw reference point (ref). Returns a value in the range [-rev_tics/2,
+   // Return the relative angle between ang and ref (ang - ref). The return value will be in the range [-rev_tics/2,
    // rev_tics/2).
-   int16_t ang(int16_t ref=0) 
+   inline ang_t rel(ang_t ang, ang_t ref)
    {
-      int16_t half = rev_tics >> 1;
-      return (_raw - ref + half) % rev_tics - half;
-   }
-
-   // Return the relative angle compared to ang both according to a raw reference point (ref). The return value will be
-   // in the range [-rev_tics/2, rev_tics/2).
-   int16_t rel(int16_t ang, int16_t ref=0)
-   {
-      return this->ang(ref + ang);
+      ang_t half = rev_tics >> 1;
+      return (ang -  ref + half) % rev_tics - half;
    }
    
+   // Return the current angle compared to a raw reference point (ref). Returns a value in the range [-rev_tics/2,
+   // rev_tics/2).
+   inline ang_t ang(ang_t ref=0) 
+   {
+      return rel(_raw, ref);
+   }
+
    virtual ~rotary_encoder() {}
 
 private:

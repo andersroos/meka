@@ -13,9 +13,6 @@
 #define M_END 15
 #define O_END 14
 
-#define POT_0 A7
-#define POT_1 A6
-
 #define ENC_A 16
 #define ENC_B 17
 

@@ -15,6 +15,8 @@ using pin_value_t = uint8_t;
 using delay_t     = uint32_t;
 using timestamp_t = uint32_t;
 
+using ang_t = int16_t;
+
 constexpr pin_value_t OFF = 0;
 constexpr pin_value_t ON = 1;
 
