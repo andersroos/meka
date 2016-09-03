@@ -13,15 +13,15 @@ CXXFLAGS = -c -g -std=c++11 -Wall -Os
 
 BAUD_RATE = 9600
 
-BOARD = ArduinoUno
-#BOARD = Teensy32
+#BOARD = ArduinoUno
+BOARD = Teensy32
 
-#MAIN = pendel
+MAIN = pendel
 #MAIN = pendel_trial
 #MAIN = stepper_changing_speed_trial
 #MAIN = stepper_speed_trial
 #MAIN = stepper
-MAIN = rotary_encoder
+#MAIN = rotary_encoder
 
 EXTRA_OBJS = # $(ARDUINO_DIR)/libraries/Servo/src/avr/Servo.o
 
@@ -85,9 +85,12 @@ test/event_queue_test.o: lib/error.hpp
 test/stepper_test.o: test/mock.hpp lib/util.hpp lib/stepper.hpp
 test/util_test.o: test/mock.hpp lib/util.hpp
 lib/event_queue.o: lib/error.hpp
+lib/event_utils.o: lib/event_queue.hpp lib/error.hpp
 lib/serial.o: lib/event_queue.hpp lib/error.hpp
 pendel.o: lib/base.hpp lib/util.hpp lib/stepper.hpp lib/event_queue.hpp
-pendel.o: lib/error.hpp lib/serial.hpp lib/event_queue.hpp pendel_pins.hpp
+pendel.o: lib/error.hpp lib/event_utils.hpp lib/event_queue.hpp
+pendel.o: lib/serial.hpp pendel_pins.hpp
 pendel_trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp pendel_pins.hpp
+rotary_encoder.o: lib/base.hpp lib/rotary_encoder.hpp
 stepper_changing_speed_trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp
 stepper_speed_trial.o: lib/base.hpp lib/stepper.hpp

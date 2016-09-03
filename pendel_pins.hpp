@@ -16,6 +16,9 @@
 #define POT_0 A7
 #define POT_1 A6
 
+#define ENC_A 16
+#define ENC_B 17
+
 #define DIR 4
 #define STP 5
 #define EN  9
