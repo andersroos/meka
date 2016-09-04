@@ -516,7 +516,7 @@ void run(event_queue& eq, const timestamp_t& when) {
          // 2, Swing it back up.
          state = MOVE_TO_MIDDLE;
          what = "move_to_middle";
-         stepper.target_speed(MAX_SPEED / 4);
+         stepper.target_speed(MAX_SPEED / 8);
          new_target = mid_pos;
       }
       else if (state == MOVE_TO_MIDDLE) {
@@ -542,7 +542,7 @@ void run(event_queue& eq, const timestamp_t& when) {
                // }
 
                // Experimental swing.
-               uint32_t swing_dist = 300 - (abs_speed - 10) * 6;
+               uint32_t swing_dist = 300 - (abs_speed - 20) * 6;
                if (ang_speed < 0 and pos <= mid_pos) {
                   what = "swing regulated m => o";
                   new_target = mid_pos + swing_dist;
