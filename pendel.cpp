@@ -22,7 +22,7 @@
 
 #define SMOOTH_DELAY       200
 #define MAX_ACCELERATION 60000
-#define MAX_SPEED        12000
+#define MAX_SPEED        16000
 #define APPROX_DISTANCE  3000
 
 #define START_BUT     G_BUT
@@ -258,7 +258,8 @@ void run_pause(event_queue& eq, const timestamp_t& when)
    eq.enqueue_now(run_start);
 }
 
-constexpr ang_t DEG_45 = 128;
+constexpr ang_t DEG_22_5 = 64;
+constexpr ang_t DEG_45 = DEG_22_5 * 2;
 constexpr ang_t DEG_90 = DEG_45 * 2;
 constexpr ang_t DEG_180 = DEG_90 * 2;
 constexpr ang_t DOWN = 0;
@@ -266,10 +267,6 @@ constexpr ang_t UP = -DEG_180;
 
 constexpr timestamp_t TICK = MILLIS * 10;
 #define STATE_SIZE 16
-
-// This is the factor to calculate the number of steps that corresponds to an ang for the pendulum. This is
-// pendelum_length*sin(ang/1024*2*pi) * steps_per_meter but for small angles sin(x) = x, for simplicity the factor is
-// pendelum_length / 1024 * pi * steps_per_meter.
 
 // Helper class for handling state.
 struct run_state {
@@ -311,22 +308,6 @@ struct run_state {
          }
       }
       return true;
-   }
-
-   int32_t up_ang_sum(uint8_t count) {
-      int32_t sum = 0;
-      for (uint8_t i = 0; i < count; ++i) {
-         sum += up_ang(i);
-      }
-      return sum;
-   }
-
-   bool changed_direction(uint8_t prev)
-   {
-      auto speed = ang_speed(0);
-      auto prev_speed = ang_speed(prev);
-
-      return ((speed < 0 and prev_speed > 0) or (speed > 0 and prev_speed < 0));
    }
 
    bool going_down()
@@ -486,7 +467,7 @@ void run(event_queue& eq, const timestamp_t& when) {
    //          ", target ", target,
    //          "\n");
    
-   if (abs(up_ang) < DEG_45 * 0.6) {
+   if (abs(up_ang) < DEG_22_5) {
       // Balance it if speed at apex is low enough.
       
       constexpr float LENGTH = 0.16;
@@ -506,39 +487,23 @@ void run(event_queue& eq, const timestamp_t& when) {
          state = BALANCE;
          what = "balancing";
       
-         // PID Regulation.
+         // PD Regulation.
       
-         int32_t up_ang_sum = rs.up_ang_sum(4);
-         
          constexpr float Kp = 1.000;
-         constexpr float Ki = 0.000;
          constexpr float Kd = 0.400;
-         constexpr float Kx = 0.010;
       
          float p_steps = Kp * up_ang * STEPS_PER_ANG;
-         float i_steps = Ki * up_ang_sum * STEPS_PER_ANG;
          float d_steps = Kd * true_speed * ANG_PER_SPEED * STEPS_PER_ANG;
-         float x_steps = Kx * (pos - mid_pos);
 
-         new_target = pos + p_steps + i_steps + d_steps + x_steps;
+         new_target = pos + p_steps + d_steps;
+
+         // To make it drit to center when near end.
          
-         // serial.p("in zone",
-         //          ", pos ", pos,
-         //          ", rel_ang ", rel_ang,
-         //          ", rel_ang_sum ", rel_ang_sum,
-         //          ", ang_speed ", ang_speed,
-         //          ", step_speed ", step_speed,
-         //          ", true_speed ", true_speed,
-         //          ", p_steps ", p_steps,
-         //          ", i_steps ", i_steps,
-         //          ", d_steps ", d_steps,
-         //          ", m_steps ", m_steps,
-         //          ", t ", rs.tick_count,
-         //          "\n");
-         
+         constexpr uint16_t off_mid_distance = 400;
+         if (abs(pos - mid_pos) > off_mid_distance) {
+            new_target += (pos - mid_pos) * 0.1;
+         }
       }
-
-      serial.p("=== top, ang_speed ", ang_speed, " ===\n");
    }
    else if (abs(up_ang) > DEG_45) {
       // Swing it.
@@ -664,10 +629,10 @@ void run(event_queue& eq, const timestamp_t& when) {
                ", ", limited_message, "\n");
    };
 
-   if (state != old_state) {
-      serial.p("state change ", old_state, " => ", state, "\n");
-      old_state = state;
-   }
+   // if (state != old_state) {
+   //    serial.p("state change ", old_state, " => ", state, "\n");
+   //    old_state = state;
+   // }
    
    eq.enqueue(run, when + TICK);
 }
