@@ -5,3 +5,4 @@
 #include "util_test.hpp"
 #include "event_queue_test.hpp"
 #include "stepper_test.hpp"
+#include "rotary_encoder_test.hpp"

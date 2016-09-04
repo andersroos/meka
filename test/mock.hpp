@@ -10,11 +10,17 @@
 #define OUTPUT 0
 #define INPUT 1
 
+#define RISING 0
+
 using pin_t       = uint8_t;
 using pin_value_t = uint8_t;
 
+using ang_t = int16_t;
+
 using delay_t     = uint32_t;
 using timestamp_t = uint32_t;
+
+using byte = uint8_t;
 
 std::vector<uint8_t> pin_modes(256);
 std::vector<uint16_t> pin_values(256);
@@ -49,4 +55,11 @@ uint32_t now_us()
 
 void delayMicroseconds(uint32_t delay) {
    usleep(delay);
+}
+
+pin_t digitalPinToInterrupt(pin_t pin) {
+   return 0;
+}
+
+void attachInterrupt(pin_t pin, void (*func)(void), int mode) {
 }

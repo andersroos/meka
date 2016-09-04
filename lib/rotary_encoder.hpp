@@ -1,7 +1,5 @@
 #pragma once
 
-int x = 0;
-
 //
 // Interface for rotary, encoder_a which should be an interrupt port, and encoder_b which does not need to be, and then
 // ticks per revolution.
@@ -21,24 +19,31 @@ struct rotary_encoder
       reset();
    }
 
-   // Set the current raw count to 0 and thus make it reference.
-   void reset()
+   // Set the current raw angle value and lap value to 0 and thus make it reference.
+   void reset(int16_t raw=0, int32_t lap=0)
    {
-      _raw = 0;
+      _raw = raw;
+      _lap = lap;
    }
 
-   // Return the raw counter value.
-   uint16_t raw()
+   // Return the raw angle value.
+   ang_t raw()
    {
       return _raw;
    }
 
+   // Return the lap value.
+   int32_t lap()
+   {
+      return _lap;
+   }
+   
    // Return the relative angle between ang and ref (ang - ref). The return value will be in the range [-rev_tics/2,
    // rev_tics/2).
    inline ang_t rel(ang_t ang, ang_t ref)
    {
       ang_t half = rev_tics >> 1;
-      return (ang -  ref + half) % rev_tics - half;
+      return uint16_t(ang - ref + half) % rev_tics - half;
    }
    
    // Return the current angle compared to a raw reference point (ref). Returns a value in the range [-rev_tics/2,
@@ -56,16 +61,28 @@ private:
    {
       byte b = digitalRead(encoder_b);
       if (b) {
-         ++_raw;
+         --_raw;
+         if (_raw == -1) {
+            _raw = rev_tics - 1;
+            _lap--;
+         }
       }
       else {
-         --_raw;
+         ++_raw;
+         if (_raw == rev_tics) {
+            _raw = 0;
+            _lap++;
+         }
       }
    }
 
-   static volatile uint16_t _raw;
+   static volatile ang_t   _raw;
+   static volatile int32_t _lap;
 };
 
-template<pin_t encoder_a, pin_t encoder_b, uint16_t pulses_per_lap>
-volatile uint16_t rotary_encoder<encoder_a, encoder_b, pulses_per_lap>::_raw;
+template<pin_t encoder_a, pin_t encoder_b, uint16_t rev_tics>
+volatile ang_t rotary_encoder<encoder_a, encoder_b, rev_tics>::_raw;
+
+template<pin_t encoder_a, pin_t encoder_b, uint16_t rev_tics>
+volatile int32_t rotary_encoder<encoder_a, encoder_b, rev_tics>::_lap;
 
