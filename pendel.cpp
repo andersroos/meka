@@ -113,8 +113,11 @@ void loop()
 // TODO Calibrate broken if power is off.
 void calibrate_standby(event_queue& eq, const timestamp_t& when)
 {
+
+   // TODO serial.p(encoder.ang(), " ", encoder.lap(), "\n");
+   // TODO delay(100);
+   
    if (not start_but.pressed()) {
-      // serial.p("pot0 ", analogRead(POT_0), " pot1 ", analogRead(POT_1), "\n");
       eq.enqueue(calibrate_standby, when + BUTTON_READ_DELAY);
       return;
    }
@@ -257,7 +260,7 @@ void run_pause(event_queue& eq, const timestamp_t& when)
 
 constexpr ang_t DEG_45 = 128;
 constexpr ang_t DEG_90 = DEG_45 * 2;
-constexpr ang_t DEG_180 = DEG_45 * 3;
+constexpr ang_t DEG_180 = DEG_90 * 2;
 constexpr ang_t DOWN = 0;
 constexpr ang_t UP = -DEG_180;
 
@@ -296,7 +299,7 @@ struct run_state {
    {
       encoder.reset();
       reset_state();
-      serial.p("calibrated down");
+      serial.p("calibrated down\n");
    }
    
    // Return true if appears to be still and down. Note, after a reset this will return true even if not still and down.
@@ -318,16 +321,40 @@ struct run_state {
       return sum;
    }
 
-   bool going_up()
+   bool changed_direction(uint8_t prev)
    {
-      auto ang = this->up_ang(0);
+      auto speed = ang_speed(0);
+      auto prev_speed = ang_speed(prev);
+
+      return ((speed < 0 and prev_speed > 0) or (speed > 0 and prev_speed < 0));
+   }
+
+   bool going_down()
+   {
+      auto ang = down_ang(0);
       auto ang_speed = this->ang_speed(0);
       
-      if (ang < 0 and 0 <= ang_speed) {
+      if (ang < 0 and ang_speed > 0) {
          return true;
       }
 
-      if (0 < ang and ang_speed <= 0) {
+      if (ang > 0 and ang_speed < 0) {
+         return true;
+      }
+
+      return false;
+   }
+   
+   bool going_up()
+   {
+      auto ang = up_ang(0);
+      auto ang_speed = this->ang_speed(0);
+      
+      if (ang < 0 and 0 < ang_speed) {
+         return true;
+      }
+
+      if (0 < ang and ang_speed < 0) {
          return true;
       }
 
@@ -366,7 +393,7 @@ struct run_state {
       down_ang(0) = encoder.ang(DOWN);
       up_ang(0) = encoder.ang(UP);
       ang_speed(0) = encoder.rel(down_ang(0), down_ang(1));
-      
+
       if (last_measure) {
          auto tick_duration = now - last_measure;
          uint32_t diff = abs(int32_t(tick_duration) - int32_t(TICK));
@@ -399,11 +426,12 @@ void run_start(event_queue& eq, const timestamp_t& when)
    serial.p("waiting for still\n");
 }
 
-constexpr uint32_t STILL = 0;
-constexpr uint32_t BALANCE = 1;
-constexpr uint32_t SWING = 2;
-constexpr uint32_t MOVE_TO_MIDDLE = 3;
-uint32_t state;
+constexpr char STILL = 'p';
+constexpr char BALANCE = 'b';
+constexpr char SWING = 'w';
+constexpr char MOVE_TO_MIDDLE = 'm';
+char state;
+char old_state;
 
 void run_wait_for_still(event_queue& eq, const timestamp_t& when) {
    if (paus_but.pressed()) {
@@ -414,7 +442,7 @@ void run_wait_for_still(event_queue& eq, const timestamp_t& when) {
    rs.measure();
    wait_for_still_ticks++;
    
-   if (wait_for_still_ticks < 10 and not rs.still()) {
+   if (wait_for_still_ticks < 10 or not rs.still()) {
       eq.enqueue(run_wait_for_still, when + TICK);
       return;
    }
@@ -447,12 +475,19 @@ void run(event_queue& eq, const timestamp_t& when) {
    ang_t up_ang = rs.up_ang(0);
    ang_t down_ang = rs.down_ang(0);
    ang_t ang_speed = rs.ang_speed(0);
-   uint32_t speed = abs(ang_speed);
+   uint32_t abs_speed = abs(ang_speed);
    const char* what = "noop";
 
-   // serial.p(" tick ", rs.tick_count, " ang ", ang, ", ang_speed ", ang_speed, "\n");
+   // serial.p("tick ", rs.tick_count,
+   //          ", up_ang ", up_ang,
+   //          ", down_ang ", down_ang,
+   //          ", ang_speed ", ang_speed,
+   //          ", pos ", pos,
+   //          ", target ", target,
+   //          "\n");
    
-   if (abs(up_ang) < 100) {
+   if (abs(up_ang) < DEG_45 * 0.6) {
+      // Balance it if speed at apex is low enough.
       
       constexpr float LENGTH = 0.16;
       constexpr float STEPS_PER_METER = 1240 / 0.245;
@@ -467,7 +502,7 @@ void run(event_queue& eq, const timestamp_t& when) {
       
       float true_speed = ang_speed + rs.step_speed * ANG_PER_STEP;
 
-      if (speed < 6 and true_speed < 6) {
+      if (abs_speed < 6 and true_speed < 6) {
          state = BALANCE;
          what = "balancing";
       
@@ -476,14 +511,16 @@ void run(event_queue& eq, const timestamp_t& when) {
          int32_t up_ang_sum = rs.up_ang_sum(4);
          
          constexpr float Kp = 1.000;
-         constexpr float Ki = 0.070;
-         constexpr float Kd = 0.110;
+         constexpr float Ki = 0.000;
+         constexpr float Kd = 0.400;
+         constexpr float Kx = 0.010;
       
          float p_steps = Kp * up_ang * STEPS_PER_ANG;
          float i_steps = Ki * up_ang_sum * STEPS_PER_ANG;
          float d_steps = Kd * true_speed * ANG_PER_SPEED * STEPS_PER_ANG;
+         float x_steps = Kx * (pos - mid_pos);
 
-         new_target = pos + p_steps + i_steps + d_steps;
+         new_target = pos + p_steps + i_steps + d_steps + x_steps;
          
          // serial.p("in zone",
          //          ", pos ", pos,
@@ -503,12 +540,8 @@ void run(event_queue& eq, const timestamp_t& when) {
 
       serial.p("=== top, ang_speed ", ang_speed, " ===\n");
    }
-   // else if (UP - DEG_45 < ang and ang < UP + DEG_45) {
-   //    what = "stop";
-   //    new_target = pos;
-   // }
-   // Swing it to a balancable position.
-   else if (abs(down_ang) < DEG_45) {
+   else if (abs(up_ang) > DEG_45) {
+      // Swing it.
       if (state == STILL) {
          state = SWING;
       }
@@ -518,43 +551,46 @@ void run(event_queue& eq, const timestamp_t& when) {
          // 2, Swing it back up.
          state = MOVE_TO_MIDDLE;
          what = "move_to_middle";
+         stepper.target_speed(MAX_SPEED / 4);
          new_target = mid_pos;
       }
       else if (state == MOVE_TO_MIDDLE) {
          if (stepper.is_stopped()) {
+            stepper.target_speed(MAX_SPEED);
             state = SWING;
          }
       }
       else if (state == SWING) {
-         auto prev_down_ang = rs.down_ang(4);
-         bool passed_down = (down_ang < 0 and 0 <= prev_down_ang) or (prev_down_ang <= 0 and 0 <down_ang);
 
-         if (stepper.is_stopped() and passed_down) {
+         if (stepper.is_stopped()) {
+            if (rs.going_down() and abs(down_ang) < DEG_90) {
          
-            // if (speed < 10) {
-            //    // Traditional swing.
-            //    uint32_t swing_dist = 200;
-            //    if (DOWN <= ang) {
-            //       what = "swing m => o";
-            //       new_target = mid_pos + swing_dist;
-            //    }
-            //    else if (ang < DOWN) {
-            //       what = "swing m <= o";
-            //       new_target = mid_pos - swing_dist;
-            //    }
-            // }
-            // else {
-               // Swing to place with regulator.
-               what = "swing regulated";
+               // // Traditional swing.
+               // uint32_t swing_dist = 200;
+               // if (ang_speed > 0) {
+               //    what = "swing m => o";
+               //    new_target = mid_pos + swing_dist;
+               // }
+               // else {
+               //    what = "swing m <= o";
+               //    new_target = mid_pos - swing_dist;
+               // }
 
-               uint32_t swing_dist = 300 - (speed - 10) * 6;
-               if (0 <= down_ang) {
+               // Experimental swing.
+               uint32_t swing_dist = 300 - (abs_speed - 10) * 6;
+               if (ang_speed < 0 and pos <= mid_pos) {
+                  what = "swing regulated m => o";
                   new_target = mid_pos + swing_dist;
                }
-               else if (down_ang < 0) {
+               else if (ang_speed > 0 and pos >= mid_pos) {
+                  what = "swing regulated m <= o";
                   new_target = mid_pos - swing_dist;
                }
-               //}
+            }
+            else if (ang_speed == 0 and pos == mid_pos) {
+               what = "jerk >= o";
+               new_target = mid_pos + 400;
+            }
          }
       }
    }
@@ -628,6 +664,11 @@ void run(event_queue& eq, const timestamp_t& when) {
                ", ", limited_message, "\n");
    };
 
+   if (state != old_state) {
+      serial.p("state change ", old_state, " => ", state, "\n");
+      old_state = state;
+   }
+   
    eq.enqueue(run, when + TICK);
 }
 
