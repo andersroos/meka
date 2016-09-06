@@ -10,6 +10,10 @@
 // * Continously rotating pot as a rotary encoder.
 //
 
+#define EVENT_QUEUE_DEBUG 8
+
+void log(const char* what);
+
 #include "Arduino.h"
 #include "lib/base.hpp"
 #include "lib/util.hpp"
@@ -18,6 +22,7 @@
 #include "lib/event_utils.hpp"
 #include "lib/serial.hpp"
 #include "lib/rotary_encoder.hpp"
+#include "lib/debug.hpp"
 #include "pendel_pins.hpp"
 
 #define SMOOTH_DELAY       200
@@ -34,6 +39,12 @@ constexpr uint32_t FAST_BLINK_DELAY = 100 * MILLIS;
 constexpr uint32_t BUTTON_READ_DELAY = 1 * MILLIS;
 
 event_queue eq;
+
+debug_log<16> debug;
+
+void log(const char* what) {
+   debug.log(what);
+}
 
 stepper stepper(DIR, STP, EN, M0, M1, M2, DIR_O, SMOOTH_DELAY);
 
@@ -127,10 +138,10 @@ void calibrate_standby(event_queue& eq, const timestamp_t& when)
    serial.p("calibrating\n");
    
    // We need a fast acceleration to be able to stop when reaching end, but not crazy fast so we miss steps.
-   stepper.acceleration(MAX_ACCELERATION * 0.7);
+   stepper.acceleration(MAX_ACCELERATION);
       
    // As fast as possible but we need to be able to stop before crashing.
-   stepper.target_speed(1200);
+   stepper.target_speed(1300);
       
    m_end_pos = 0;
    o_end_pos = 0;
@@ -266,7 +277,7 @@ constexpr ang_t DOWN = 0;
 constexpr ang_t UP = -DEG_180;
 
 constexpr timestamp_t TICK = MILLIS * 10;
-#define STATE_SIZE 16
+constexpr uint32_t STATE_SIZE = 16;
 
 // Helper class for handling state.
 struct run_state {
@@ -380,6 +391,7 @@ struct run_state {
          uint32_t diff = abs(int32_t(tick_duration) - int32_t(TICK));
          if (MILLIS < diff * 2) {
             serial.p("warning, tick was ", tick_duration, " us, diff ", diff, " us\n");
+            debug.dump(serial);
          }      
       }
       last_measure = now;
@@ -435,6 +447,8 @@ void run_wait_for_still(event_queue& eq, const timestamp_t& when) {
 
 void run(event_queue& eq, const timestamp_t& when) {
 
+   debug.log("run_top");
+   
    if (m_end_switch.value() or o_end_switch.value()) {
       emergency_stop();
    }
@@ -629,10 +643,11 @@ void run(event_queue& eq, const timestamp_t& when) {
                ", ", limited_message, "\n");
    };
 
-   // if (state != old_state) {
-   //    serial.p("state change ", old_state, " => ", state, "\n");
-   //    old_state = state;
-   // }
+   if (state != old_state) {
+      serial.p("state change ", old_state, " => ", state, "\n");
+      old_state = state;
+   }
+   debug.log("run_after_printout");
    
    eq.enqueue(run, when + TICK);
 }

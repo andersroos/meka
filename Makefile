@@ -86,12 +86,14 @@ test/event_queue_test.o: lib/error.hpp
 test/rotary_encoder_test.o: test/mock.hpp lib/rotary_encoder.hpp
 test/stepper_test.o: test/mock.hpp lib/util.hpp lib/stepper.hpp
 test/util_test.o: test/mock.hpp lib/util.hpp
+lib/debug.o: lib/serial.hpp lib/event_queue.hpp lib/error.hpp
 lib/event_queue.o: lib/error.hpp
 lib/event_utils.o: lib/event_queue.hpp lib/error.hpp
 lib/serial.o: lib/event_queue.hpp lib/error.hpp
 pendel.o: lib/base.hpp lib/util.hpp lib/stepper.hpp lib/event_queue.hpp
 pendel.o: lib/error.hpp lib/event_utils.hpp lib/event_queue.hpp
-pendel.o: lib/serial.hpp lib/rotary_encoder.hpp pendel_pins.hpp
+pendel.o: lib/serial.hpp lib/rotary_encoder.hpp lib/debug.hpp lib/serial.hpp
+pendel.o: pendel_pins.hpp
 pendel_trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp pendel_pins.hpp
 stepper_changing_speed_trial.o: lib/base.hpp lib/util.hpp lib/stepper.hpp
 stepper_speed_trial.o: lib/base.hpp lib/stepper.hpp
