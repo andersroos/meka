@@ -89,6 +89,7 @@ struct event_queue
             auto event = _events[_index];
             --_size;
             _index = next(_index);
+            // TODO Should we give new as an argument too, or should it be different types of callbacks? Or enqueues.
             if (event.obj) {
                event.obj->operator()(*this, event.when);
             }

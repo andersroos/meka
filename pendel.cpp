@@ -40,7 +40,7 @@ constexpr uint32_t BUTTON_READ_DELAY = 1 * MILLIS;
 
 event_queue eq;
 
-debug_log<16> debug;
+debug_log<32> debug;
 
 void log(const char* what) {
    debug.log(what);
@@ -129,7 +129,7 @@ void calibrate_standby(event_queue& eq, const timestamp_t& when)
    // TODO delay(100);
    
    if (not start_but.pressed()) {
-      eq.enqueue(calibrate_standby, when + BUTTON_READ_DELAY);
+      eq.enqueue(calibrate_standby, now_us() + BUTTON_READ_DELAY);
       return;
    }
 
@@ -239,7 +239,7 @@ void run_prepare(event_queue& eq, const timestamp_t& when)
 void run_standby(event_queue& eq, const timestamp_t& when)
 {
    if (not start_but.pressed()) {
-      eq.enqueue(run_standby, when + BUTTON_READ_DELAY);
+      eq.enqueue(run_standby, now_us() + BUTTON_READ_DELAY);
       return;
    }
 
@@ -251,7 +251,7 @@ void run_standby(event_queue& eq, const timestamp_t& when)
 void run_pause(event_queue& eq, const timestamp_t& when)
 {
    if (not stepper.is_stopped()) {
-      eq.enqueue(run_pause, when + BUTTON_READ_DELAY);
+      eq.enqueue(run_pause, now_us() + BUTTON_READ_DELAY);
       return;
    }
 
@@ -260,7 +260,7 @@ void run_pause(event_queue& eq, const timestamp_t& when)
    }
    
    if (not start_but.pressed()) {
-      eq.enqueue(run_pause, when + BUTTON_READ_DELAY);
+      eq.enqueue(run_pause, now_us() + BUTTON_READ_DELAY);
       return;
    }
    
@@ -391,7 +391,6 @@ struct run_state {
          uint32_t diff = abs(int32_t(tick_duration) - int32_t(TICK));
          if (MILLIS < diff * 2) {
             serial.p("warning, tick was ", tick_duration, " us, diff ", diff, " us\n");
-            debug.dump(serial);
          }      
       }
       last_measure = now;
@@ -426,7 +425,8 @@ constexpr char MOVE_TO_MIDDLE = 'm';
 char state;
 char old_state;
 
-void run_wait_for_still(event_queue& eq, const timestamp_t& when) {
+void run_wait_for_still(event_queue& eq, const timestamp_t& when)
+{
    if (paus_but.pressed()) {
       run(eq, when);
       return;
@@ -436,19 +436,17 @@ void run_wait_for_still(event_queue& eq, const timestamp_t& when) {
    wait_for_still_ticks++;
    
    if (wait_for_still_ticks < 10 or not rs.still()) {
-      eq.enqueue(run_wait_for_still, when + TICK);
+      eq.enqueue(run_wait_for_still, now_us() + TICK);
       return;
    }
 
    state = STILL;
    rs.calibrate_down();
-   eq.enqueue(run, when + TICK);
+   eq.enqueue(run, now_us() + TICK);
 }
 
-void run(event_queue& eq, const timestamp_t& when) {
-
-   debug.log("run_top");
-   
+void run(event_queue& eq, const timestamp_t& when)
+{
    if (m_end_switch.value() or o_end_switch.value()) {
       emergency_stop();
    }
@@ -647,7 +645,6 @@ void run(event_queue& eq, const timestamp_t& when) {
       serial.p("state change ", old_state, " => ", state, "\n");
       old_state = state;
    }
-   debug.log("run_after_printout");
    
    eq.enqueue(run, when + TICK);
 }
@@ -660,7 +657,7 @@ void run_step(event_queue& eq, const timestamp_t& when)
    }
 
    if (stepper.is_stopped()) {
-      eq.enqueue(run_step, when + MILLIS);
+      eq.enqueue(run_step, now_us() + MILLIS);
       return;
    }
 

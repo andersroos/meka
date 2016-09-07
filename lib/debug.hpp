@@ -12,25 +12,24 @@ struct debug_log
          _when[i] = 0;
          _what[i] = "empty";
       }
+      _index = 0;
    }
 
    void log(const char* what)
    {
-      for (uint16_t i = size - 1; i > 0; --i) {
-         _when[i] = _when[i - 1];
-         _what[i] = _what[i - 1];
-      }
-      _when[0] = now_us();
-      _what[0] = what;
+      _index = uint16_t(_index - 1) % size;
+      _when[_index] = now_us();
+      _what[_index] = what;
    }
 
    void dump(noblock_serial& s)
    {
       timestamp_t last = now_us();
-      s.p("dump at ", last, "\n");
+      s.pr("dump at ", last, "\n");
       for (uint16_t i = 0; i < size; ++i) {
-         timestamp_t when = _when[i];
-         s.p(when, " ", _what[i], " (", last - when, " to next ^)\n");
+         auto index = (i + _index) % size;
+         timestamp_t when = _when[index];
+         s.pr(when, " ", _what[index], " (", last - when, " to next ^)\n");
          last = when;
       }
    }
@@ -38,5 +37,6 @@ struct debug_log
 private:
    timestamp_t _when[size];
    const char* _what[size];
+   uint16_t _index;
 };
 
