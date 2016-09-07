@@ -250,6 +250,11 @@ void run_standby(event_queue& eq, const timestamp_t& when)
 
 void run_pause(event_queue& eq, const timestamp_t& when)
 {
+   serial.p("ang ", encoder.ang(),
+            " pos ", encoder._pos,
+            " neg ", encoder._neg,
+            "\n");
+   
    if (not stepper.is_stopped()) {
       eq.enqueue(run_pause, now_us() + BUTTON_READ_DELAY);
       return;
@@ -260,7 +265,7 @@ void run_pause(event_queue& eq, const timestamp_t& when)
    }
    
    if (not start_but.pressed()) {
-      eq.enqueue(run_pause, now_us() + BUTTON_READ_DELAY);
+      eq.enqueue(run_pause, now_us() + 100 * MILLIS);
       return;
    }
    
