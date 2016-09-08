@@ -496,7 +496,7 @@ void run(event_queue& eq, const timestamp_t& when)
       constexpr float SPEED_PER_ANG = 4.0 / 70; // =~ 0.057
       constexpr float ANG_PER_SPEED = 1 / SPEED_PER_ANG; // =~ 18
 
-      constexpr uint16_t MAX_BALANCE_ANG_SPEED = ENCODER_REV_TICKS / 170;
+      constexpr uint16_t MAX_BALANCE_ANG_SPEED = DEG_90 / 35;
       
       // Stepper will affect ang_speed, so true_speed is an attempt to calculate ang_speed as it would have been if
       // steper did not move.
