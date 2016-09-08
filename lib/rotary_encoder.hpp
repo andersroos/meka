@@ -15,7 +15,7 @@ struct rotary_encoder
       pinMode(encoder_b, INPUT);
       attachInterrupt(digitalPinToInterrupt(encoder_a), 
                       interrupt, 
-                      RISING);
+                      CHANGE);
       reset();
    }
 
@@ -24,8 +24,6 @@ struct rotary_encoder
    {
       _raw = raw;
       _lap = lap;
-      _neg = 0;
-      _pos = 0;
    }
 
    // Return the raw angle value.
@@ -84,15 +82,16 @@ struct rotary_encoder
 
      Observationer
      * Händer även när consolen är bortplockad.
+     * Händer även när både huvudprintout och consolen är bortplockad.
      
    */
    
    static void interrupt()
    {
-      byte b = digitalRead(encoder_b);
-      if (b) {
+      bool a = digitalRead(encoder_a);
+      bool b = digitalRead(encoder_b);
+      if (a == b) {
          --_raw;
-         ++_neg;
          if (_raw == -1) {
             _raw = rev_tics - 1;
             _lap--;
@@ -100,7 +99,6 @@ struct rotary_encoder
       }
       else {
          ++_raw;
-         ++_pos;
          if (_raw == rev_tics) {
             _raw = 0;
             _lap++;
@@ -108,8 +106,6 @@ struct rotary_encoder
       }
    }
 
-   static volatile uint32_t _pos;
-   static volatile uint32_t _neg;
    static volatile ang_t   _raw;
    static volatile int32_t _lap;
 };
@@ -119,10 +115,3 @@ volatile ang_t rotary_encoder<encoder_a, encoder_b, rev_tics>::_raw;
 
 template<pin_t encoder_a, pin_t encoder_b, uint16_t rev_tics>
 volatile int32_t rotary_encoder<encoder_a, encoder_b, rev_tics>::_lap;
-
-template<pin_t encoder_a, pin_t encoder_b, uint16_t rev_tics>
-volatile uint32_t rotary_encoder<encoder_a, encoder_b, rev_tics>::_neg;
-
-template<pin_t encoder_a, pin_t encoder_b, uint16_t rev_tics>
-volatile uint32_t rotary_encoder<encoder_a, encoder_b, rev_tics>::_pos;
-
