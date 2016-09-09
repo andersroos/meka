@@ -38,6 +38,8 @@ constexpr uint32_t SLOW_BLINK_DELAY = 200 * MILLIS;
 constexpr uint32_t FAST_BLINK_DELAY = 100 * MILLIS;
 constexpr uint32_t BUTTON_READ_DELAY = 1 * MILLIS;
 
+constexpr uint16_t ENCODER_REV_TICKS = 2048;
+
 event_queue eq;
 
 debug_log<32> debug;
@@ -48,7 +50,7 @@ void log(const char* what) {
 
 stepper stepper(DIR, STP, EN, M0, M1, M2, DIR_O, SMOOTH_DELAY);
 
-rotary_encoder<ENC_A, ENC_B, 1024> encoder;
+rotary_encoder<ENC_A, ENC_B, ENCODER_REV_TICKS> encoder;
 
 button start_but(START_BUT);
 button paus_but(PAUS_BUT);
@@ -251,8 +253,6 @@ void run_standby(event_queue& eq, const timestamp_t& when)
 void run_pause(event_queue& eq, const timestamp_t& when)
 {
    serial.p("ang ", encoder.ang(),
-            " pos ", encoder._pos,
-            " neg ", encoder._neg,
             "\n");
    
    if (not stepper.is_stopped()) {
@@ -274,10 +274,11 @@ void run_pause(event_queue& eq, const timestamp_t& when)
    eq.enqueue_now(run_start);
 }
 
-constexpr ang_t DEG_22_5 = 64;
-constexpr ang_t DEG_45 = DEG_22_5 * 2;
-constexpr ang_t DEG_90 = DEG_45 * 2;
-constexpr ang_t DEG_180 = DEG_90 * 2;
+constexpr ang_t DEG_360 = ENCODER_REV_TICKS;
+constexpr ang_t DEG_180 = DEG_360 / 2;
+constexpr ang_t DEG_90 = DEG_180 / 2;
+constexpr ang_t DEG_45 = DEG_90 / 2;
+constexpr ang_t DEG_22_5 = DEG_45 / 2;
 constexpr ang_t DOWN = 0;
 constexpr ang_t UP = -DEG_180;
 
@@ -489,18 +490,20 @@ void run(event_queue& eq, const timestamp_t& when)
       
       constexpr float LENGTH = 0.16;
       constexpr float STEPS_PER_METER = 1240 / 0.245;
-      constexpr float STEPS_PER_ANG = LENGTH / 1024 * 2 * PI * STEPS_PER_METER; // =~ 3.7
+      constexpr float STEPS_PER_ANG = LENGTH / ENCODER_REV_TICKS * 2 * PI * STEPS_PER_METER; // =~ 3.7
       constexpr float ANG_PER_STEP = 1 / STEPS_PER_ANG; // =~ 0.27
       
       constexpr float SPEED_PER_ANG = 4.0 / 70; // =~ 0.057
       constexpr float ANG_PER_SPEED = 1 / SPEED_PER_ANG; // =~ 18
+
+      constexpr uint16_t MAX_BALANCE_ANG_SPEED = DEG_90 / 35;
       
       // Stepper will affect ang_speed, so true_speed is an attempt to calculate ang_speed as it would have been if
       // steper did not move.
       
       float true_speed = ang_speed + rs.step_speed * ANG_PER_STEP;
 
-      if (abs_speed < 6 and true_speed < 6) {
+      if (abs_speed < MAX_BALANCE_ANG_SPEED and true_speed < MAX_BALANCE_ANG_SPEED) {
          state = BALANCE;
          what = "balancing";
       

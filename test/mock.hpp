@@ -11,6 +11,7 @@
 #define INPUT 1
 
 #define RISING 0
+#define CHANGE 2
 
 using pin_t       = uint8_t;
 using pin_value_t = uint8_t;
