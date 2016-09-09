@@ -126,12 +126,11 @@ void loop()
 // TODO Calibrate broken if power is off.
 void calibrate_standby(event_queue& eq, const timestamp_t& when)
 {
-
    // TODO serial.p(encoder.ang(), " ", encoder.lap(), "\n");
    // TODO delay(100);
    
    if (not start_but.pressed()) {
-      eq.enqueue(calibrate_standby, now_us() + BUTTON_READ_DELAY);
+      eq.enqueue_rel(calibrate_standby, BUTTON_READ_DELAY);
       return;
    }
 
@@ -164,7 +163,7 @@ void calibrate_standby(event_queue& eq, const timestamp_t& when)
 void calibrate_move_clear_of_m_end(event_queue& eq, const timestamp_t& when)
 {
    if (not stepper.is_stopped()) {
-      eq.enqueue(calibrate_move_clear_of_m_end, stepper.step());
+      eq.enqueue_at(calibrate_move_clear_of_m_end, stepper.step());
       return;
    }
 
@@ -176,7 +175,7 @@ void calibrate_move_clear_of_m_end(event_queue& eq, const timestamp_t& when)
 void calibrate_find_m_end(event_queue& eq, const timestamp_t& when)
 {
    if (not m_end_switch.value() and not stepper.is_stopped()) {
-      eq.enqueue(calibrate_find_m_end, stepper.step());
+      eq.enqueue_at(calibrate_find_m_end, stepper.step());
       return;
    }
 
@@ -188,7 +187,7 @@ void calibrate_find_m_end(event_queue& eq, const timestamp_t& when)
 void calibrate_find_o_end(event_queue& eq, const timestamp_t& when)
 {
    if (not o_end_switch.value() and not stepper.is_stopped()) {
-      eq.enqueue(calibrate_find_o_end, stepper.step());
+      eq.enqueue_at(calibrate_find_o_end, stepper.step());
       return;
    }
    
@@ -200,7 +199,7 @@ void calibrate_find_o_end(event_queue& eq, const timestamp_t& when)
 void calibrate_calibrate(event_queue& eq, const timestamp_t& when)
 {
    if (not stepper.is_stopped()) {
-      eq.enqueue(calibrate_calibrate, stepper.step());
+      eq.enqueue_at(calibrate_calibrate, stepper.step());
       return;
    }
 
@@ -215,7 +214,7 @@ void calibrate_calibrate(event_queue& eq, const timestamp_t& when)
 void calibrate_center(event_queue& eq, const timestamp_t& when)
 {
    if (not stepper.is_stopped()) {
-      eq.enqueue(calibrate_center, stepper.step());
+      eq.enqueue_at(calibrate_center, stepper.step());
       return;
    }
 
@@ -241,7 +240,7 @@ void run_prepare(event_queue& eq, const timestamp_t& when)
 void run_standby(event_queue& eq, const timestamp_t& when)
 {
    if (not start_but.pressed()) {
-      eq.enqueue(run_standby, now_us() + BUTTON_READ_DELAY);
+      eq.enqueue_rel(run_standby, BUTTON_READ_DELAY);
       return;
    }
 
@@ -256,7 +255,7 @@ void run_pause(event_queue& eq, const timestamp_t& when)
             "\n");
    
    if (not stepper.is_stopped()) {
-      eq.enqueue(run_pause, now_us() + BUTTON_READ_DELAY);
+      eq.enqueue_rel(run_pause, BUTTON_READ_DELAY);
       return;
    }
 
@@ -265,7 +264,7 @@ void run_pause(event_queue& eq, const timestamp_t& when)
    }
    
    if (not start_but.pressed()) {
-      eq.enqueue(run_pause, now_us() + 100 * MILLIS);
+      eq.enqueue_rel(run_pause, 100 * MILLIS);
       return;
    }
    
@@ -442,13 +441,13 @@ void run_wait_for_still(event_queue& eq, const timestamp_t& when)
    wait_for_still_ticks++;
    
    if (wait_for_still_ticks < 10 or not rs.still()) {
-      eq.enqueue(run_wait_for_still, now_us() + TICK);
+      eq.enqueue_rel(run_wait_for_still, TICK);
       return;
    }
 
    state = STILL;
    rs.calibrate_down();
-   eq.enqueue(run, now_us() + TICK);
+   eq.enqueue_rel(run, TICK);
 }
 
 void run(event_queue& eq, const timestamp_t& when)
@@ -654,7 +653,7 @@ void run(event_queue& eq, const timestamp_t& when)
       old_state = state;
    }
    
-   eq.enqueue(run, when + TICK);
+   eq.enqueue_at(run, when + TICK);
 }
 
 // Run stepper in its own "thread".
@@ -665,11 +664,11 @@ void run_step(event_queue& eq, const timestamp_t& when)
    }
 
    if (stepper.is_stopped()) {
-      eq.enqueue(run_step, now_us() + MILLIS);
+      eq.enqueue_rel(run_step, MILLIS);
       return;
    }
 
-   eq.enqueue(run_step, stepper.step());
+   eq.enqueue_at(run_step, stepper.step());
 }
 
 void check_for_emergency_stop(event_queue& eq, const timestamp_t& when)
@@ -678,7 +677,7 @@ void check_for_emergency_stop(event_queue& eq, const timestamp_t& when)
       emergency_stop();
       return;
    }
-   eq.enqueue(check_for_emergency_stop, when + BUTTON_READ_DELAY);
+   eq.enqueue_rel(check_for_emergency_stop, BUTTON_READ_DELAY);
 }
 
 void emergency_stop()
@@ -690,5 +689,4 @@ void emergency_stop()
    y_led.off();   
    r_led.off();
    serial.clear();
-   serial.pr("\nemergency stop issued\n");
 }

@@ -2,7 +2,7 @@
 
 #include "event_queue.hpp"
 
-struct led_blinker : public event_queue::callback_obj
+struct led_blinker : public event_queue::callback_obj_at
 {
    led_blinker(event_queue& event_queue, led& led, const delay_t& interval=SECOND) :
       _event_queue(event_queue), _led(led), _interval(interval), _run(false)
@@ -34,7 +34,7 @@ struct led_blinker : public event_queue::callback_obj
    {
       if (_run) {
          _led.toggle();
-         eq.enqueue(this, when + _interval);
+         eq.enqueue_at(this, when + _interval);
       }
    }
    

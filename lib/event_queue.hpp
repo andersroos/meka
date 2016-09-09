@@ -17,25 +17,56 @@ using namespace std;
 
 struct event_queue
 {
-   struct callback_obj {
-      virtual void operator()(event_queue& event_queue, const timestamp_t& when) = 0;
-   };
-   using callback_fun_t = void (*)(event_queue& event_queue, const timestamp_t& when);
+   struct callback_obj { virtual void operator()(event_queue& event_queue) = 0; };
+   struct callback_obj_at { virtual void operator()(event_queue& event_queue, const timestamp_t& when) = 0; };
+   
+   using callback_fun_at_t = void (*)(event_queue& event_queue, const timestamp_t& when);
+   using callback_fun_t = void (*)(event_queue& event_queue);
+   using callback_obj_at_t = callback_obj_at*;
    using callback_obj_t = callback_obj*;
+
    using index_t = uint8_t;
 
-   // One event in the event loop. We need to have both pointer to function and pointer to functor object in parallell
-   // since we don't want to use new thus we can't cretate functor objects for function pointers on the fly. It's a bit
-   // ugly but it works. (std::function also uses new in some cases.)
+   enum kind_t:uint8_t { OBJ, OBJ_AT, FUN, FUN_AT };
+   
+   union fun_t {
+      callback_obj_t    obj;
+      callback_obj_at_t obj_at;
+      callback_fun_t    fun;
+      callback_fun_at_t fun_at;
+   };
+
+   // One event in the event loop. Since we don't want to use new, we can't use functor objects, thus the union fun_t
+   // instead. It's a bit ugly but it works. (std::function also uses new in some cases.)
    struct event
    {
+      kind_t         kind;
+      fun_t          fun;
       timestamp_t    when;
-      callback_fun_t fun;
-      callback_obj_t obj;
+
+      inline void fun_set(callback_obj_at_t f) { fun.obj_at = f; kind = OBJ_AT; }
+      inline void fun_set(callback_obj_t f)    { fun.obj = f;    kind = OBJ; }
+      inline void fun_set(callback_fun_at_t f) { fun.fun_at = f; kind = FUN_AT; }
+      inline void fun_set(callback_fun_t f)    { fun.fun = f;    kind = FUN; }
+
+      inline bool fun_eq(callback_obj_at_t f) { return kind == OBJ_AT and fun.obj_at == f; }
+      inline bool fun_eq(callback_obj_t f)    { return kind == OBJ    and fun.obj == f; }
+      inline bool fun_eq(callback_fun_at_t f) { return kind == FUN_AT and fun.fun_at == f; }
+      inline bool fun_eq(callback_fun_t f)    { return kind == FUN    and fun.fun == f; }
+
+      inline void operator()(event_queue& eq)
+      {
+         switch (kind) {
+            case OBJ:    fun.obj->operator()(eq); break;
+            case OBJ_AT: fun.obj_at->operator()(eq, when); break;
+            case FUN:    fun.fun(eq); break;
+            case FUN_AT: fun.fun_at(eq, when); break;
+         }
+      }
       
       void operator=(const event& other) {
          fun = other.fun;
-         obj = other.obj;
+         kind = other.kind;
          when = other.when;
       }
    };
@@ -66,12 +97,12 @@ struct event_queue
    }
    
    // Get next index.
-   index_t next(const index_t& i) {
+   inline index_t next(const index_t& i) {
       return (i + 1) % EVENTS_SIZE;
    }
 
    // Get prev index.
-   index_t prev(const index_t& i) {
+   inline index_t prev(const index_t& i) {
       return (i + (EVENTS_SIZE - 1)) % EVENTS_SIZE;
    }
 
@@ -89,13 +120,7 @@ struct event_queue
             auto event = _events[_index];
             --_size;
             _index = next(_index);
-            // TODO Should we give new as an argument too, or should it be different types of callbacks? Or enqueues.
-            if (event.obj) {
-               event.obj->operator()(*this, event.when);
-            }
-            else {
-               event.fun(*this, event.when);
-            }
+            event(*this);
          }
       }
 
@@ -112,25 +137,14 @@ struct event_queue
    // Enqueue event into the event loop, if queue is full it will show error. Depending on what type timestamp_t is it
    // may wrap (70 minutes on arduino uno and teensy32), add to that some lag in handling is also possible so deltas
    // above 60 mins (3.6e9 us) is bad practice.
-   void enqueue(callback_fun_t callback, uint32_t when) { _enqueue(callback, nullptr, when); }
-   void enqueue(callback_obj_t callback, uint32_t when) { _enqueue(nullptr, callback, when); }
-   void enqueue_now(callback_fun_t callback) { enqueue(callback, now_us()); }
-   void enqueue_now(callback_obj_t callback) { enqueue(callback, now_us()); }
+   template<typename T> inline void enqueue_at(T callback, timestamp_t when) { _enqueue(callback, when); }
+   template<typename T> inline void enqueue_rel(T callback, timestamp_t delta) { _enqueue(callback, now_us() + delta); }
+   template<typename T> inline void enqueue_now(T callback) { _enqueue(callback, now_us()); }
 
-   bool present(const callback_fun_t callback) const
+   template<typename T> bool present(T callback)
    {
       for (uint32_t i = 0; i < _size; ++i) {
-         if (_events[(i + _index) % EVENTS_SIZE].fun == callback) {
-            return true;
-         }
-      }
-      return false;
-   }
-
-   bool present(const callback_obj_t callback) const
-   {
-      for (uint32_t i = 0; i < _size; ++i) {
-         if (_events[(i + _index) % EVENTS_SIZE].obj == callback) {
+         if (_events[(i + _index) % EVENTS_SIZE].fun_eq(callback)) {
             return true;
          }
       }
@@ -139,7 +153,8 @@ struct event_queue
    
 private:
 
-   void _enqueue(callback_fun_t fun, callback_obj_t obj,  uint32_t when)
+   template<typename T>
+   void _enqueue(T fun,  uint32_t when)
    {
       if (_size == EVENTS_SIZE) {
          show_error(error::EVENT_QUEUE_FULL);
@@ -153,8 +168,7 @@ private:
          auto back_index = (_index + _size - 1) % EVENTS_SIZE;
 
          auto& e = _events[back_index];
-         e.fun = fun;
-         e.obj = obj;
+         e.fun_set(fun);
          e.when = when;
 
          timestamp_t now = now_us();

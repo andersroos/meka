@@ -97,7 +97,7 @@ struct noblock_serial : event_queue::callback_obj
       return pr(rest...);
    }
 
-   virtual void operator()(event_queue& event_queue, const timestamp_t& when)
+   virtual void operator()(event_queue& event_queue)
    {
       if (_size == 0) {
          return;
@@ -117,7 +117,7 @@ struct noblock_serial : event_queue::callback_obj
          }
       }
 
-      _event_queue->enqueue(this, when + _wait);
+      _event_queue->enqueue_rel(this, _wait);
    }
    
    noblock_serial& pr() { return *this; }
