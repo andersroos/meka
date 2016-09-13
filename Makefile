@@ -20,7 +20,9 @@ MAIN = pendel
 #MAIN = pendel_trial
 #MAIN = stepper_changing_speed_trial
 #MAIN = stepper_speed_trial
+#MAIN = blink
 #MAIN = stepper
+#MAIN = stepper_simple_move
 #MAIN = rotary_encoder
 
 EXTRA_OBJS = # $(ARDUINO_DIR)/libraries/Servo/src/avr/Servo.o
