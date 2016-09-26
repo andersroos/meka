@@ -346,7 +346,8 @@ struct run_state {
 
       return false;
    }
-   
+
+   // TODO Used? Remove dead code when finished.
    bool going_up()
    {
       auto ang = up_ang(0);
