@@ -128,7 +128,7 @@ void calibrate_standby(event_queue& eq, const timestamp_t& when)
 {
    // TODO serial.p(encoder.ang(), " ", encoder.lap(), "\n");
    // TODO delay(100);
-   
+
    if (not start_but.pressed()) {
       eq.enqueue_rel(calibrate_standby, BUTTON_READ_DELAY);
       return;

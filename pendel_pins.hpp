@@ -45,8 +45,8 @@
 
 // rotary
 
-#define ENC_A 8
-#define ENC_B 9
+#define ENC_B 8
+#define ENC_A 9
 
 // knappar
 
@@ -62,8 +62,8 @@
 
 // endswitchar
 
-#define M_END 17
-#define O_END 16
+#define O_END 17
+#define M_END 16
 
 // motorriktning
 
