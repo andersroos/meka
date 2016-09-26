@@ -25,7 +25,7 @@ BOOST_AUTO_TEST_CASE(test_simulation_scenario_move_1500)
    while (true) {
       uint32_t start = now_us();
       uint32_t timestamp = s.step();
-      if (!timestamp) {
+      if (s.is_stopped()) {
          break;
       }
       total_d += timestamp - start;
@@ -47,7 +47,7 @@ BOOST_AUTO_TEST_CASE(test_simulation_scenario_move_backwards_1500)
    while (true) {
       uint32_t start = now_us();
       uint32_t timestamp = s.step();
-      if (!timestamp) {
+      if (s.is_stopped()) {
          break;
       }
       total_d += timestamp - start;
@@ -74,9 +74,8 @@ BOOST_AUTO_TEST_CASE(test_change_target_pos_mid_run)
 
    // Decelerate, stop, accelerate backwards, then break = 599 steps.
    for (uint32_t p = 0; p < 599; ++p) {
-      BOOST_CHECK(s.step());
+      s.step();
    }
-   BOOST_CHECK_EQUAL(0, s.step());
    BOOST_CHECK_EQUAL(0, s.pos());
 }
 
@@ -89,7 +88,10 @@ BOOST_AUTO_TEST_CASE(test_expected_micro_stepping_level_is_used)
    s.target_pos(1);
 
    uint32_t steps = 0;
-   while (s.step()) steps++;
+   while (not s.is_stopped()) {
+      s.step();
+      steps++;
+   }
    BOOST_CHECK_EQUAL(32, steps);
    BOOST_CHECK_EQUAL(1, s.pos());
    BOOST_CHECK_EQUAL(32, s.raw_pos());
