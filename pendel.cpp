@@ -313,7 +313,6 @@ struct run_state {
    inline ang_t& down_ang(uint8_t i) { return _down_ang[(index + i) % STATE_SIZE]; }
 
    // Reset encoder in the down position that we assume we are in.
-   // TODO Maybe it would be better with some dynamic calibration.
    void calibrate_down()
    {
       encoder.reset();
