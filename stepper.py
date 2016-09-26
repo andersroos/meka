@@ -159,7 +159,7 @@ class Stepper(object):
                 self.state = self.ACCEL
                 return self.target_delay >> self.shift
 
-        # TODO Step here and calculate delay later to be able to include time consuming calculation in next delay.
+        # Step here and calculate delay later to be able to include time consuming calculation in next delay.
         # The delay is the waiting needed for this step to mechanically reach its target, when waiting is done the
         # step is done.
 

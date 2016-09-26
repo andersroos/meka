@@ -18,7 +18,7 @@ struct led_blinker : public event_queue::callback_obj_at
    }
 
    void start() {
-      if (_run) {
+      if (_event_queue.present(this)) {
          return;
       }
       _run = true;

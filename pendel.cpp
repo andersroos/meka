@@ -123,12 +123,8 @@ void loop()
    eq.run();
 }
 
-// TODO Calibrate broken if power is off.
 void calibrate_standby(event_queue& eq, const timestamp_t& when)
 {
-   // TODO serial.p(encoder.ang(), " ", encoder.lap(), "\n");
-   // TODO delay(100);
-
    if (not start_but.pressed()) {
       eq.enqueue_rel(calibrate_standby, BUTTON_READ_DELAY);
       return;
@@ -174,7 +170,12 @@ void calibrate_move_clear_of_m_end(event_queue& eq, const timestamp_t& when)
 
 void calibrate_find_m_end(event_queue& eq, const timestamp_t& when)
 {
-   if (not m_end_switch.value() and not stepper.is_stopped()) {
+   if (not m_end_switch.value()) {
+      if (stepper.is_stopped()) {
+         // This means the power is off or something is really broken.
+         emergency_stop();
+      }
+      
       eq.enqueue_at(calibrate_find_m_end, stepper.step());
       return;
    }
@@ -186,7 +187,11 @@ void calibrate_find_m_end(event_queue& eq, const timestamp_t& when)
 
 void calibrate_find_o_end(event_queue& eq, const timestamp_t& when)
 {
-   if (not o_end_switch.value() and not stepper.is_stopped()) {
+   if (not o_end_switch.value()) {
+      if (stepper.is_stopped()) {
+         // This means the power is off or something is really broken.
+         emergency_stop();
+      }
       eq.enqueue_at(calibrate_find_o_end, stepper.step());
       return;
    }
@@ -690,4 +695,5 @@ void emergency_stop()
    y_led.off();   
    r_led.off();
    serial.clear();
+   serial.pr("emergency stopped\n");
 }

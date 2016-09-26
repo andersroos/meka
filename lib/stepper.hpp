@@ -300,7 +300,6 @@ stepper::micro_set()
 void
 stepper::calibrate_position(int32_t pos)
 {
-   // TODO Add error state where it is permanently off, this is dangerous.
    if (not is_stopped()) {
       return;
    }
