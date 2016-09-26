@@ -4,13 +4,13 @@
 
 #include "Arduino.h"
 
-#define STP 3
-#define DIR 2
-#define EN  7
+#define DIR 4
+#define STP 5
+#define EN  9
 
-#define M0 6
-#define M1 5
-#define M2 4
+#define M0 8
+#define M1 7
+#define M2 6
 
 void setup()
 {
