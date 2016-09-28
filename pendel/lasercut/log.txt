@@ -1,0 +1,56 @@
+
+== Lådan v8 ==
+
+4mm (3.8mm) björkplywood.
+
+Cut
+Speed:          20mm/s
+Work power1:   50%
+Corner power1: 40%
+
+* Gick inte igenom överallt.
+
+Cut
+Speed:         20mm/s
+Work power1:   55%
+Corner power1: 40%
+
+Carve
+Speed:            250mm/s
+Engrave power:    25
+Engrave accuracy: 0.1
+
+* Carve gick åt helvete, men jag tror det var fel på den vektoriserade
+  bilden snarare än inställningarna.
+
+* Cut blev bra.
+
+* Hålet i botten kanske är för litet för att kunna skruva. (Fixat i v9.)
+
+* Behövs fler sexkantsbitar och 5mm-bitar. Och de behöver vara mindre, annars kommer jag få kapa. (Fixat i v9.)
+
+* Carve borde vara ett lager i inkscape. (Skiter i carve för tillfället.) 
+
+* Usb ska upp 1-0.5 mm, den ska närmare taket. Ändrar till 2.8
+  (lödning i teensy till underkant på usb) + 3.8 (ply tjocklek) - 1
+  (månen runt usb) = 5.6 från innerkant. (Fixat i v9.)
+
+* Signalkoppligen utåt fungerar inte för så tjocka sladdar, den måste
+  designas om. (Fixat i v9.)
+
+* Kanske vill ha en bit innanför flatkabelhållaren. (Fixat i v9.)
+
+* Hål för kylfläns spegelvälnt och jag kanske vill ha det åt andra ledden med bara två borrhål. (Fixat i v9.)
+
+* Urgröpning till teensyn. (Fixat i v9.)
+
+== Lådan v9 ==
+
+4mm (3.8mm) björkplywood.
+
+Cut
+Speed:         20mm/s
+Work power1:   55%
+Corner power1: 40%
+
+* Blev bra.

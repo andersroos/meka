@@ -3,6 +3,8 @@ Software
 *.elf
 *.hex
 *.o
+*.gcode
+*.fcstd1
 .ipynb_checkpoints/
 .idea/
 run-tests

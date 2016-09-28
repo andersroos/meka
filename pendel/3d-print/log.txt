@@ -1,0 +1,91 @@
+
+== Hold v1 ==
+
+2h, PLA
+
+Layer height:     0.15
+Shell thickness:  1.2
+Top thickness:    1.2
+Nozzle:           0.4
+
+Fill density: 20
+Print speed:  50
+Support:      None
+Adhersion:    None
+
+* Blev helt ok, men innerdiametrarna blev för små. 
+
+* Axelhålet var för litet på ritningen, finns ingen anledning att göra
+det tajt, 8mm borde det vara. (Fixat i v2.)
+
+* Hålet för 12 mm kullager är i verkligheten 11,8. (Fixat i v2.)
+
+* Hålet för utfasningen som ska vara 20 mm är i verkligheten 19,8. (Fixat i v2.)
+
+* Rundningen på själva hållaren är också för liten, antar att det är 0,2 mm fel där också. (Fixat i v2.)
+
+* Behöver inte heller snåla på skruvhålen. (Ej fixat.)
+
+== Combined v3 ==
+
+3h, PLA
+
+Layer height:     0.12
+Shell thickness:  1.6
+Top thickness:    1.6
+Nozzle:           0.4
+
+Fill density: 20
+Print speed:  50
+Support:      None
+Adhersion:    None
+
+* På peg-delen är ett problem att kullagren inte får plats för att peg
+  för kortsidan är för nära peg för långsida.
+
+* Två muttrar eller ens skruvhuvuden kan inte mötas i peg.
+
+* Hål verkar funka bra, men som förutsett är det problem med längden
+  på skruvar och "brickor".
+
+== Sleigh v1 + Hold v3 ==
+
+PLA
+
+Layer height:     0.12
+Shell thickness:  1.6
+Top thickness:    1.6
+Nozzle:           0.4
+
+Fill density: 20
+Print speed:  50
+Support:      Everywhere
+Adhersion:    Brim
+
+* Kvaliten ser generellt bra ut.
+
+* Brim är onödigt.
+
+* Curas interna support funkar bra och är lätta att ta bort.
+
+* Sleigh: Urfasningen för hold är 1 cm för smal. är 24 ska vara 40.
+
+* Sleigh: Urfasningen kasnke ska vara 4 djup och inte två.
+
+* Hold: Fronten har för stor diameter på hålet, eller också fattas fronten.
+
+== Sleigh v2 + Hold v4 ==
+
+9h, PLA
+
+Layer height:     0.12
+Shell thickness:  1.6
+Top thickness:    1.6
+Nozzle:           0.4
+
+Fill density: 20
+Print speed:  50
+Support:      Everywhere
+Adhersion:    None
+
+* Blev bra.
