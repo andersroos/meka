@@ -14,7 +14,7 @@
 #include "lib/base.hpp"
 #include "lib/util.hpp"
 #include "lib/stepper.hpp"
-#include "pendel_pins.hpp"
+#include "pins.hpp"
 
 #define SMOOTH_DELAY       200
 #define MAX_ACCELERATION 50000

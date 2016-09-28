@@ -35,7 +35,7 @@ ARDUINO_UPLOADFLAGS += -c arduino -p atmega328p  -b 115200
 ARDUINO_UPLOADFLAGS += -P $(PORT)
 
 # Compile.
-%.o: %.cpp $(call rwildcard, $(BASE_DIR)/, *.hpp)
+%.o: %.cpp
 	$(AVR_CXX) $(CXXFLAGS) $(ARDUINO_CXXFLAGS) -c -o $@ $<
 
 # Link.

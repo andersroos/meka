@@ -30,7 +30,7 @@ TEENSY_LDFLAGS += -mcpu=cortex-m4 -mthumb -L$(ARDUINO_IDE_DIR)/lib
 TEENSY_LDFLAGS += -T$(ARDUINO_IDE_DIR)/hardware/teensy/avr/cores/teensy3/mk20dx256.ld
 
 # Compile.
-%.o: %.cpp $(call rwildcard, $(BASE_DIR)/, *.hpp)
+%.o: %.cpp
 	$(ARM_CXX) $(CXXFLAGS) $(TEENSY_CXXFLAGS) -c -o $@ $<
 
 # Link.

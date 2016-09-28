@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-#include "test/mock.hpp"
+#include "lib/test/mock.hpp"
 #include "lib/stepper.hpp"
 
 using namespace std;

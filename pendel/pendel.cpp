@@ -23,7 +23,7 @@ void log(const char* what);
 #include "lib/serial.hpp"
 #include "lib/rotary_encoder.hpp"
 #include "lib/debug.hpp"
-#include "pendel_pins.hpp"
+#include "pins.hpp"
 
 #define SMOOTH_DELAY       200
 #define MAX_ACCELERATION 60000
