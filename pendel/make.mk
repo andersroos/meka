@@ -4,4 +4,4 @@ MAIN = pendel/pendel
 
 BOARD = Teensy32
 
-BAUD_RATE = 9600
+BAUD_RATE = 57600

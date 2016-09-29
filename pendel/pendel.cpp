@@ -92,7 +92,7 @@ void run(event_queue& eq, const timestamp_t& when);
 void check_for_emergency_stop(event_queue& eq, const timestamp_t& when);
 void emergency_stop();
 
-noblock_serial serial(&eq);
+noblock_serial serial(&eq, 57600);
 
 void setup()
 {
@@ -256,8 +256,7 @@ void run_standby(event_queue& eq, const timestamp_t& when)
 
 void run_pause(event_queue& eq, const timestamp_t& when)
 {
-   serial.p("ang ", encoder.ang(),
-            "\n");
+   serial.p("ang ", encoder.ang(), "\n");
    
    if (not stepper.is_stopped()) {
       eq.enqueue_rel(run_pause, BUTTON_READ_DELAY);
@@ -269,7 +268,7 @@ void run_pause(event_queue& eq, const timestamp_t& when)
    }
    
    if (not start_but.pressed()) {
-      eq.enqueue_rel(run_pause, 100 * MILLIS);
+      eq.enqueue_rel(run_pause, 200 * MILLIS);
       return;
    }
    
@@ -482,14 +481,6 @@ void run(event_queue& eq, const timestamp_t& when)
    uint32_t abs_speed = abs(ang_speed);
    const char* what = "noop";
 
-   // serial.p("tick ", rs.tick_count,
-   //          ", up_ang ", up_ang,
-   //          ", down_ang ", down_ang,
-   //          ", ang_speed ", ang_speed,
-   //          ", pos ", pos,
-   //          ", target ", target,
-   //          "\n");
-   
    if (abs(up_ang) < DEG_22_5) {
       // Balance it if speed at apex is low enough.
       
@@ -524,9 +515,9 @@ void run(event_queue& eq, const timestamp_t& when)
 
          // To make it drit to center when near end.
          
-         constexpr uint16_t off_mid_distance = 400;
+         constexpr uint16_t off_mid_distance = 100;
          if (abs(pos - mid_pos) > off_mid_distance) {
-            new_target += (pos - mid_pos) * 0.1;
+            new_target += (pos - mid_pos) * 0.06;
          }
       }
    }
@@ -555,18 +546,7 @@ void run(event_queue& eq, const timestamp_t& when)
          if (stepper.is_stopped()) {
             if (rs.going_down() and abs(down_ang) < DEG_90) {
          
-               // // Traditional swing.
-               // uint32_t swing_dist = 200;
-               // if (ang_speed > 0) {
-               //    what = "swing m => o";
-               //    new_target = mid_pos + swing_dist;
-               // }
-               // else {
-               //    what = "swing m <= o";
-               //    new_target = mid_pos - swing_dist;
-               // }
-
-               // Experimental swing.
+               // Adaptive swing.
                uint32_t swing_dist = 300 - (abs_speed - 20) * 6;
                if (ang_speed < 0 and pos <= mid_pos) {
                   what = "swing regulated m => o";
@@ -584,53 +564,6 @@ void run(event_queue& eq, const timestamp_t& when)
          }
       }
    }
-   // else if (pos == target and rs.going_up()) {
-   //    what = "breaking";
-   //    
-   //    constexpr float LENGTH = 0.16;
-   //    constexpr float STEPS_PER_METER = 1240 / 0.245;
-   //    constexpr float STEPS_PER_ANG = LENGTH / 1024 * 2 * PI * STEPS_PER_METER; // =~ 3.7
-   //    constexpr float ANG_PER_STEP = 1 / STEPS_PER_ANG; // =~ 0.27
-   //    
-   //    constexpr float SPEED_PER_ANG = 4.0 / 70; // =~ 0.057
-   //    constexpr float ANG_PER_SPEED = 1 / SPEED_PER_ANG; // =~ 18
-   //    
-   //    // Stepper will affect ang_speed, so true_speed is an attempt to calculate ang_speed as it would have been if
-   //    // steper did not move.
-   //    
-   //    float true_speed = ang_speed + step_speed * ANG_PER_STEP;
-   //    
-   //    // PID Regulation.
-   //    
-   //    int32_t rel_ang = ang - UP;
-   //    int32_t rel_ang_sum = rs.rel_ang_sum(UP, 4);
-   //    
-   //    constexpr float Kp = 0.000;
-   //    constexpr float Ki = 0.000;
-   //    constexpr float Kd = 0.030;
-   //    
-   //    float p_steps = Kp * rel_ang * STEPS_PER_ANG;
-   //    float i_steps = Ki * rel_ang_sum * STEPS_PER_ANG;
-   //    float d_steps = Kd * -ang_speed * ANG_PER_SPEED * STEPS_PER_ANG;
-   //    
-   //    // serial.p("in zone",
-   //    //          ", pos ", pos,
-   //    //          ", rel_ang ", rel_ang,
-   //    //          ", rel_ang_sum ", rel_ang_sum,
-   //    //          ", ang_speed ", ang_speed,
-   //    //          ", step_speed ", step_speed,
-   //    //          ", true_speed ", true_speed,
-   //    //          ", p_steps ", p_steps,
-   //    //          ", i_steps ", i_steps,
-   //    //          ", d_steps ", d_steps,
-   //    //          ", m_steps ", m_steps,
-   //    //          ", t ", rs.tick_count,
-   //    //          "\n");
-   //    
-   //    new_target = pos + p_steps + i_steps + d_steps;
-   //    
-   //    in_swing = false;
-   // }
    
    if (new_target != target) {
       const char* limited_message = "";
