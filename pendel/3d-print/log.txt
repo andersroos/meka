@@ -89,3 +89,18 @@ Support:      Everywhere
 Adhersion:    None
 
 * Blev bra.
+
+== Pendel v3 ==
+
+3h, PLA
+
+Layer height:     0.12
+Shell thickness:  1.12
+Top thickness:    1.12
+Nozzle:           0.4
+
+Fill density: 40
+Print speed:  50
+Support:      None
+Adhersion:    None
+
