@@ -1,7 +1,7 @@
 
-# Code for an Inverted Pendulum Build #
+# Code for Inverted Pendulum #
 
-See a short video of it [here](https://youtu.be/OBcsSwayEsc).
+See a short video of the working pendulum [here](https://youtu.be/OBcsSwayEsc).
 
 ## Hardware Used ##
 
