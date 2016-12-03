@@ -7,7 +7,7 @@ constexpr uint32_t MINUTE = 60 * SECOND;
 
 // Returns true if x is before y. Can only used reliably for values in the interval -5 mins to +65 mins from now.
 bool before(const timestamp_t& now, const timestamp_t& x, const timestamp_t& y) {
-   constexpr uint32_t _5_MINS = 5 * 60 * 1000 * 1000;
+   constexpr uint32_t _5_MINS = 5 * MINUTE;
    return uint32_t(x - now + _5_MINS) < uint32_t(y - now + _5_MINS);
 }
 

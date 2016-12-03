@@ -21,11 +21,16 @@ struct noblock_serial : event_queue::callback_obj
 {
 
    noblock_serial(event_queue* eq=nullptr, uint32_t baud_rate=9600) :
-      _event_queue(eq), _head(_buf), _tail(_buf), _size(0), _wait(1e6 * 10 / baud_rate)
+      _event_queue(eq), _baud_rate(baud_rate), _head(_buf), _tail(_buf), _size(0), _wait(1e6 * 10 / baud_rate)
    {
-      Serial.begin(baud_rate);
+      begin();
    }
 
+   void begin()
+   {
+      Serial.begin(_baud_rate);
+   }
+   
    // Returns true if bot hw send buffer and sw send buffers are empty.
    bool tx_empty()
    {
@@ -221,6 +226,8 @@ private:
    event_queue* _event_queue;
    char _buf[SERIAL_BUF_SIZE];
 
+   uint32_t _baud_rate;
+   
    // Head and tail of the buffer. As long as _size > 0 we enqueue checking of the buffer.
    char* _head;
    char* _tail;

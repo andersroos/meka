@@ -13,16 +13,14 @@ CXXFLAGS = -c -g -std=c++11 -Wall -Os -I$(BASE_DIR)
 
 BAUD_RATE = 9600
 
-EXTRA_OBJS = # $(ARDUINO_DIR)/libraries/Servo/src/avr/Servo.o
-
 default: build
 
 #
 # Project.
 #
 
-include pendel/make.mk
-# include lab/make.mk
+# include pendel/make.mk
+include lab/make.mk
 # include dev-stepper/make.mk
 # include dev-rotary-encoder/make.mk
 

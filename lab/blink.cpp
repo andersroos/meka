@@ -20,7 +20,7 @@ int g = 1;
 int y = 0;
 
 void loop() {
-   digitalWrite(Y_LED_PIN, b++ & 1);
+   digitalWrite(BUILTIN_LED_PIN, b++ & 1);
    digitalWrite(Y_LED_PIN, y++ & 1);
    digitalWrite(G_LED_PIN, g++ & 1);
    delay(100);
