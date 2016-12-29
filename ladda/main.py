@@ -2,79 +2,138 @@
 
 import os
 
-import math
+from pylaser import write, Point, BoxEdge, Group, Polyline, Circle
 
-from pylaser import save, Polyline, Point, Group
+PLY_THICKNESS = 5.9
 
+SLIDE_LENGTH = 250
 
-class BoxEdge(Polyline):
+CUT_LENGTH = 40
 
-    def __init__(self, start, end, depth, length, right=True, cut_ends=False, min_end_length=None):
-        """ A box edge with cuts from start point to end point. Cuts of depth and (max)length.
-        The edge can be right side (True) left side (False), cuts will go the other way. To start and
-        end with cut, set cut_ends. Set min_end_length if needed will be depth by default. """
+INNER_BOX_WIDTH = 0
+INNER_BOX_HEIGHT = 0
+INNER_BOX_DEPTH = 0
 
-        min_end_length = depth or min_end_length
+OUTER_BOX_WIDTH = 380
+OUTER_BOX_HEIGHT = 180
+OUTER_BOX_DEPTH = SLIDE_LENGTH + PLY_THICKNESS
 
-        x_distance = end.x - start.x
-        y_distance = end.y - start.y
-        distance = math.sqrt(x_distance ** 2 + y_distance ** 2)
+AXIS_SEG_SIZE = 100
 
-        unit_x = x_distance / distance
-        unit_y = y_distance / distance
+TRI_BASE = 20
 
-        if right:
-            cut_x = -unit_y
-            cut_y = unit_x
+def get_axis(rel=Point(0, 0)):
+    g = Group(rel=rel)
+    for x in range(0, 6 * AXIS_SEG_SIZE, 2 * AXIS_SEG_SIZE):
+        g.append(Polyline(Point(x, 0), Point(x + AXIS_SEG_SIZE, 0)))
+    for y in range(0, 6 * AXIS_SEG_SIZE, 2 * AXIS_SEG_SIZE):
+        g.append(Polyline(Point(0, y), Point(0, y + AXIS_SEG_SIZE)))
+    return g
+
+def get_outer_box_top(rel=Point(0, 0)):
+    # Outer box top seen from the front.
+
+    g = Group(rel=rel)
+    # Front edge.
+    g.append(BoxEdge(Point(0, 0), Point(OUTER_BOX_WIDTH, 0),
+                     depth=PLY_THICKNESS, length=CUT_LENGTH,
+                     right=True, cut_start=False, cut_end=False))
+
+    # Side edges.
+    g.append(BoxEdge(Point(0, 0), Point(0, OUTER_BOX_DEPTH),
+                     depth=PLY_THICKNESS, length=CUT_LENGTH,
+                     right=False, cut_start=False, cut_end=False))
+
+    g.append(BoxEdge(Point(OUTER_BOX_WIDTH, 0), Point(OUTER_BOX_WIDTH, OUTER_BOX_DEPTH),
+                     depth=PLY_THICKNESS, length=CUT_LENGTH,
+                     right=True, cut_start=False, cut_end=False))
+
+    # Back edge.
+    g.append(Polyline(Point(0, OUTER_BOX_DEPTH), Point(OUTER_BOX_WIDTH, OUTER_BOX_DEPTH)))
+
+    # Vent.
+    def triangle(x, y, top_up, min_x, max_x):
+        if top_up:
+            uy = 1
         else:
-            cut_x = unit_y
-            cut_y = -unit_x
+            y += TRI_BASE
+            uy = -1
 
-        # Want to get the cuts in the middle so the first and last step may be shorter. Find out the
-        # number of cuts and the start and end distance. Also count needs to be uneven.
+        if x < min_x - TRI_BASE * 2:
+            return None
 
-        count = int((distance - min_end_length * 2) // length)
-        count -= 1 - count % 2
-        end_length = (distance - length * count) // 2
+        if x < min_x - TRI_BASE:
+            return Polyline(
+                Point(min_x, y),
+                Point(min_x, y + uy * (x + TRI_BASE * 2 - min_x)),
+                Point(x + TRI_BASE * 2, y),
+                Point(min_x, y),
+            )
 
-        print("count", count, "end_length", end_length, "distance", distance, "length", length, "min_end_length", min_end_length)
+        if x < min_x:
+            return Polyline(
+                Point(min_x, y),
+                Point(min_x, y + uy * (min_x - x)),
+                Point(x + TRI_BASE, y + uy * TRI_BASE),
+                Point(x + TRI_BASE * 2, y),
+                Point(min_x, y),
+            )
 
-        points = []
-        ping = -1 if cut_ends else 1
+        if x <= max_x - TRI_BASE * 2:
+            return Polyline(
+                Point(x, y),
+                Point(x + TRI_BASE, y + TRI_BASE * uy),
+                Point(x + 2 * TRI_BASE, y),
+                Point(x, y),
+            )
 
-        def add(l, x, y):
-            points.append(Point(x, y))
-            x += l * unit_x
-            y += l * unit_y
-            if ping:
-                points.append(Point(x, y))
-                x += depth * cut_x * ping
-                y += depth * cut_y * ping
-            return x, y
+        if x <= max_x - TRI_BASE:
+            return Polyline(
+                Point(x, y),
+                Point(x + TRI_BASE, y + uy * TRI_BASE),
+                Point(max_x, y + uy * (x + TRI_BASE * 2 - max_x)),
+                Point(max_x, y),
+                Point(x, y),
+            )
 
-        x, y = start
-        x, y = add(end_length, x, y)
-        ping = -ping
-        for _ in range(count):
-            x, y = add(length, x, y)
-            ping = -ping
-        ping = 0
-        add(end_length, x, y)
-        points.append(end)
+        if x < max_x:
+            return Polyline(
+                Point(x, y),
+                Point(max_x, y + uy * (max_x - x)),
+                Point(max_x, y),
+                Point(x, y),
+            )
 
-        super().__init__(*points)
+        return None
+
+    top_up = True
+    for x in range(-TRI_BASE * 2, int(OUTER_BOX_WIDTH), int(TRI_BASE * 1.5)):
+        for y in (60, 120, 180):
+            g.append(triangle(x, y, top_up, PLY_THICKNESS * 2, OUTER_BOX_WIDTH - PLY_THICKNESS * 2))
+        top_up = not top_up
+
+    return g
 
 
-be1 = BoxEdge(Point(0, 20), Point(200, 20), 20, 50, False, cut_ends=True)
+def get_outer_box_inner_top(rel=Point(0, 0)):
+    # Outer box innter top seen from the front. To be glued on inner top
+    g = Group(rel=rel)
+    g.append(Polyline(
+        Point(PLY_THICKNESS, PLY_THICKNESS),
+        Point(OUTER_BOX_WIDTH - PLY_THICKNESS, PLY_THICKNESS),
+        Point(OUTER_BOX_WIDTH - PLY_THICKNESS, OUTER_BOX_DEPTH),
+        Point(PLY_THICKNESS, OUTER_BOX_DEPTH),
+        Point(PLY_THICKNESS, PLY_THICKNESS)
+    ))
+    return g
 
-# pl = Polyline(
-#     Point(0, 100),
-#     Point(0, 0),
-#     Point(100, 0),
-# )
 
-g = Group(be1)
+group = Group(
+    get_outer_box_top(),
+    get_outer_box_inner_top(),
+    get_axis(rel=Point(-100, -100)), rel=Point(120, 120))
 
-save('/tmp/ladda.svg', g)
+write('/tmp/ladda.svg', group)
+write('/tmp/ladda.dxf', group)
 
 os.system('firefox /tmp/ladda.svg')
