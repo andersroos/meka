@@ -20,23 +20,25 @@ OUTER_BOX_DEPTH = SLIDE_LENGTH + PLY_THICKNESS
 
 AXIS_SEG_SIZE = 100
 
-TRI_BASE = 20
+TRI_BASE = 18
+TRI_STEP = 28
+TRI_EDGE = 22
 
-def vent(x, y, top_up, min_x, max_x):
+def tri(x, y, top_up, min_x, max_x, tri_base):
     if top_up:
         uy = 1
     else:
-        y += TRI_BASE
+        y += tri_base
         uy = -1
 
-    if x < min_x - TRI_BASE * 2:
+    if x < min_x - tri_base * 2:
         return None
 
-    if x < min_x - TRI_BASE:
+    if x < min_x - tri_base:
         return Polyline(
             Point(min_x, y),
-            Point(min_x, y + uy * (x + TRI_BASE * 2 - min_x)),
-            Point(x + TRI_BASE * 2, y),
+            Point(min_x, y + uy * (x + tri_base * 2 - min_x)),
+            Point(x + tri_base * 2, y),
             Point(min_x, y),
         )
 
@@ -44,24 +46,24 @@ def vent(x, y, top_up, min_x, max_x):
         return Polyline(
             Point(min_x, y),
             Point(min_x, y + uy * (min_x - x)),
-            Point(x + TRI_BASE, y + uy * TRI_BASE),
-            Point(x + TRI_BASE * 2, y),
+            Point(x + tri_base, y + uy * tri_base),
+            Point(x + tri_base * 2, y),
             Point(min_x, y),
         )
 
-    if x <= max_x - TRI_BASE * 2:
+    if x <= max_x - tri_base * 2:
         return Polyline(
             Point(x, y),
-            Point(x + TRI_BASE, y + TRI_BASE * uy),
-            Point(x + 2 * TRI_BASE, y),
+            Point(x + tri_base, y + tri_base * uy),
+            Point(x + 2 * tri_base, y),
             Point(x, y),
         )
 
-    if x <= max_x - TRI_BASE:
+    if x <= max_x - tri_base:
         return Polyline(
             Point(x, y),
-            Point(x + TRI_BASE, y + uy * TRI_BASE),
-            Point(max_x, y + uy * (x + TRI_BASE * 2 - max_x)),
+            Point(x + tri_base, y + uy * tri_base),
+            Point(max_x, y + uy * (x + tri_base * 2 - max_x)),
             Point(max_x, y),
             Point(x, y),
         )
@@ -75,7 +77,6 @@ def vent(x, y, top_up, min_x, max_x):
         )
 
     return None
-
 
 def get_axis(rel=Point(0, 0)):
     g = Group(rel=rel)
@@ -103,43 +104,49 @@ def get_outer_box_top(rel=Point(0, 0)):
                      depth=PLY_THICKNESS, length=CUT_LENGTH,
                      right=True, cut_start=False, cut_end=False))
 
-    # Back edge. # TODO Add dent for cable in back end?
+    # Back edge.
     g.append(Polyline(Point(0, OUTER_BOX_DEPTH), Point(OUTER_BOX_WIDTH, OUTER_BOX_DEPTH)))
+    for x in range(int(OUTER_BOX_WIDTH / 5), int(OUTER_BOX_WIDTH), int(OUTER_BOX_WIDTH / 5)):
+        g.append(tri(x - 10, OUTER_BOX_DEPTH - 6, True, 0, OUTER_BOX_WIDTH, 8))
 
     # Vents.
     top_up = True
-    for x in range(-TRI_BASE * 2, int(OUTER_BOX_WIDTH), int(TRI_BASE * 1.5)):
+    for x in range(int(TRI_EDGE - TRI_BASE), int(OUTER_BOX_WIDTH), TRI_STEP):
         for y in (60, 120, 180):
-            g.append(vent(x, y, top_up, PLY_THICKNESS * 4, OUTER_BOX_WIDTH - PLY_THICKNESS * 4))
+            g.append(tri(x, y, top_up, TRI_EDGE, OUTER_BOX_WIDTH - TRI_EDGE, TRI_BASE))
         top_up = not top_up
 
     return g
 
 
-def get_outer_box_inner_top(rel=Point(0, 0)):
-    # Outer box inner top y=PLY_THICKNESS at the front. To be glued on inner top
+def get_outer_box_bottom(rel=Point(0, 0)):
+    # y=0 at the front.
 
     g = Group(rel=rel)
-
-    # TODO Add dent for cable in back end?
-    g.append(Polyline(
-        Point(OUTER_BOX_WIDTH - PLY_THICKNESS, PLY_THICKNESS),
-        Point(OUTER_BOX_WIDTH - PLY_THICKNESS, OUTER_BOX_DEPTH),
-        Point(PLY_THICKNESS, OUTER_BOX_DEPTH),
-        Point(PLY_THICKNESS, PLY_THICKNESS),
-    ))
-
     # Front edge.
-    g.append(BoxEdge(Point(PLY_THICKNESS, PLY_THICKNESS), Point(OUTER_BOX_WIDTH - PLY_THICKNESS, PLY_THICKNESS),
+    g.append(BoxEdge(Point(0, 0), Point(OUTER_BOX_WIDTH, 0),
                      depth=PLY_THICKNESS, length=CUT_LENGTH,
-                     right=True))
+                     right=True, cut_start=False, cut_end=False))
 
-    # Vents.
-    top_up = True
-    for x in range(-TRI_BASE * 2, int(OUTER_BOX_WIDTH), int(TRI_BASE * 1.5)):
-        for y in (60, 120, 180):
-            g.append(vent(x, y, top_up, PLY_THICKNESS * 4, OUTER_BOX_WIDTH - PLY_THICKNESS * 4))
-        top_up = not top_up
+    # Side edges.
+    g.append(BoxEdge(Point(0, 0), Point(0, OUTER_BOX_DEPTH),
+                     depth=PLY_THICKNESS, length=CUT_LENGTH,
+                     right=False, cut_start=False, cut_end=False))
+
+    g.append(BoxEdge(Point(OUTER_BOX_WIDTH, 0), Point(OUTER_BOX_WIDTH, OUTER_BOX_DEPTH),
+                     depth=PLY_THICKNESS, length=CUT_LENGTH,
+                     right=True, cut_start=False, cut_end=False))
+
+    # Back edge / hole.
+    edge = PLY_THICKNESS * 3
+    g.append(Polyline(
+        Point(0, OUTER_BOX_DEPTH),
+        Point(edge, OUTER_BOX_DEPTH),
+        Point(edge, edge),
+        Point(OUTER_BOX_WIDTH - edge, edge),
+        Point(OUTER_BOX_WIDTH - edge, OUTER_BOX_DEPTH),
+        Point(OUTER_BOX_WIDTH, OUTER_BOX_DEPTH),
+    ))
 
     return g
 
@@ -163,7 +170,9 @@ def get_outer_box_front(rel=Point(0, 0)):
                      right=True, cut_start=False, cut_end=False))
 
     # Bottom edge.
-    g.append(Polyline(Point(0, 0), Point(OUTER_BOX_WIDTH, 0)))
+    g.append(BoxEdge(Point(0, 0), Point(OUTER_BOX_WIDTH, 0),
+                     depth=PLY_THICKNESS, length=CUT_LENGTH,
+                     right=True, cut_start=True, cut_end=True))
 
     return g
 
@@ -188,7 +197,9 @@ def get_outer_box_side(right=True, rel=Point(0, 0)):
                      right=right, cut_start=True, cut_end=True))
 
     # Bottom edge.
-    g.append(Polyline(Point(dx * OUTER_BOX_HEIGHT, 0), Point(dx * OUTER_BOX_HEIGHT, OUTER_BOX_DEPTH)))
+    g.append(BoxEdge(Point(dx * OUTER_BOX_HEIGHT, 0), Point(dx * OUTER_BOX_HEIGHT, OUTER_BOX_DEPTH),
+                     depth=PLY_THICKNESS, length=CUT_LENGTH,
+                     right=right, cut_start=True, cut_end=True))
 
     return g
 
@@ -196,12 +207,12 @@ def get_outer_box_side(right=True, rel=Point(0, 0)):
 group = Group(
     get_outer_box_top(),
     get_outer_box_front(rel=Point(0, -OUTER_BOX_HEIGHT - 20)),
+    get_outer_box_bottom(rel=Point(0, -OUTER_BOX_HEIGHT - OUTER_BOX_DEPTH - 40)),
     get_outer_box_side(right=True, rel=Point(OUTER_BOX_WIDTH + 20, 0)),
     get_outer_box_side(right=False, rel=Point(-20, 0)),
-    get_outer_box_inner_top(rel=Point(0, OUTER_BOX_DEPTH + 20)),
 
     # get_axis(rel=Point(-100, -100)),
-    rel=Point(OUTER_BOX_HEIGHT + 40, 20),
+    rel=Point(OUTER_BOX_HEIGHT + 40, 20 + OUTER_BOX_HEIGHT + OUTER_BOX_DEPTH),
 )
 
 write('/tmp/ladda.svg', group)
