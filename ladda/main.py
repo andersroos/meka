@@ -193,7 +193,7 @@ def get_outer_box_panel_rim(rel=Point(0, 0)):
 
     edge = OUTER_BOX_PANEL_EDGE + OUTER_BOX_PANEL_INNER_HOLE_MARGIN
 
-    dent_height = OUTER_BOX_HEIGHT * 0.3
+    dent_height = OUTER_BOX_HEIGHT * 0.5
     dent_width = SLIDER_WIDTH * 1.2
 
     # Outer edge.
@@ -248,6 +248,21 @@ def get_outer_box_empty_panel(rel=Point(0, 0)):
     ))
 
     return Group(g1, g2, rel=rel)
+
+def get_outer_box_pinnar(rel=Point(0, 0)):
+
+    g = Group(rel=rel)
+
+    height = OUTER_BOX_DEPTH - PLY_THICKNESS
+    width = 30
+
+    for x in range(0, width * 5, width):
+        g.append(Polyline(Point(x, 0), Point(x, height)))
+
+    g.append(Polyline(Point(0, 0), Point(width * 4, 0)))
+    g.append(Polyline(Point(0, height), Point(width * 4, height)))
+
+    return g
 
 
 def get_outer_box_side(rel=Point(0, 0)):
@@ -377,6 +392,7 @@ outer_box = Group(
     get_outer_box_side(rel=Point(OUTER_BOX_WIDTH + 20, 0)),
     get_outer_box_side(rel=Point(-OUTER_BOX_HEIGHT - 20, 0)),
     get_outer_box_panel_rim(rel=Point(OUTER_BOX_WIDTH + 20, - OUTER_BOX_HEIGHT - 20)),
+    get_outer_box_pinnar(rel=Point(-OUTER_BOX_HEIGHT - 20, -OUTER_BOX_DEPTH - 20)),
     # get_outer_box_empty_panel(rel=Point(OUTER_BOX_WIDTH + 20, - OUTER_BOX_HEIGHT * 2- 20)), Take from cutouts instead.
 
     # get_slider_marker(rel=Point(PLY_THICKNESS + 1, PLY_THICKNESS + 1)),
