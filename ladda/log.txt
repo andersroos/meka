@@ -1,5 +1,5 @@
 
-== Ladda f75d2145f10c928ad77401cbec84e10594071aad  ==
+== Ladda f75d2145f10c928ad77401cbec84e10594071aad ==
 
 6mm (5.9mm) björkplywood.
 
@@ -39,4 +39,16 @@ Corner power1: 75%
   att det brinner men inte går igenom ett lager eller två. Det kan
   alltså vara kinkigt med för stora strukturer.
 
+== 3d-printed details b8dbb3e1e8c6ddfa8b438b9fcef9a54a4820f35b ==
 
+PLA
+
+Layer height:     0.15
+Shell thickness:  1.00
+Top thickness:    0.90
+Nozzle:           0.25
+
+Fill density: 50
+Print speed:  50
+Support:      None
+Adhersion:    None
