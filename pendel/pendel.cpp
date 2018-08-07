@@ -513,7 +513,7 @@ void run(event_queue& eq, const timestamp_t& when)
 
          new_target = pos + p_steps + d_steps;
 
-         // To make it drit to center when near end.
+         // To make it drift to center when near end.
          
          constexpr uint16_t off_mid_distance = 100;
          if (abs(pos - mid_pos) > off_mid_distance) {
