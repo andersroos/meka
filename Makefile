@@ -13,6 +13,8 @@ CXXFLAGS = -c -g -std=c++11 -Wall -Os -I$(BASE_DIR)
 
 BAUD_RATE = 9600
 
+-include local.mk
+
 default: build
 
 #

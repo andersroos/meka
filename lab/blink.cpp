@@ -23,5 +23,5 @@ void loop() {
    digitalWrite(BUILTIN_LED_PIN, b++ & 1);
    digitalWrite(Y_LED_PIN, y++ & 1);
    digitalWrite(G_LED_PIN, g++ & 1);
-   delay(100);
+   delay(300);
 }

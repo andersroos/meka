@@ -10,3 +10,4 @@ Software
 run-tests
 Makefile.bak
 simulate
+local.mk
