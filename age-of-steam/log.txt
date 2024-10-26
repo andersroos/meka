@@ -1,0 +1,25 @@
+
+= Age of Steam =
+
+== Spelplan 4mm akryl ==
+
+Cut (från loggen)
+Speel:         10mm/s
+Work power1:   95%
+Corner power1: 75%
+
+== Ladda f75d2145f10c928ad77401cbec84e10594071aad ==
+
+* Går fortfarande inte igenom, dessutom verkar det vara lite random.
+
+Cut
+Speed:         14mm/s
+Work power1:   95%
+Corner power1: 75%
+
+* Funkade mycket bättre. Inte snåla!
+
+* Men det går dåigt ibland ändå, tror det är kvistar och annat som gör
+  att det brinner men inte går igenom ett lager eller två. Det kan
+  alltså vara kinkigt med för stora strukturer.
+
